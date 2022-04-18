@@ -2,11 +2,40 @@ import pandas as pd
 
 import argparse
 from datetime import datetime
+from dateutil import tz
+import fsspec
+from io import StringIO
 import json
-from typing import Tuple
+from os import PathLike
+import sys
+from typing import Optional, Tuple, Union
 
 
-DURATION_DEFAULT = '3H'
+DEFAULT_DURATION = '3H'
+DEFAULT_SEP = ','
+DEFAULT_COL_IDX_DT = 0
+DEFAULT_COL_IDX_Q = 1
+DEFAULT_USGS_RDB = False
+DEFAULT_PRETTY_PRINT = False
+
+USGS_COL_DATETIME = 'datetime'
+USGS_COL_FLOW_ENDSWITH = '00060'
+USGS_COL_TZ = 'tz_cd'
+USGS_TZ_MAPPINGS = {
+    'EST': 'America/New_York',
+    'EDT': 'America/New_York',
+    'CST': 'America/Chicago',
+    'CDT': 'America/Chicago',
+    'MST': 'America/Denver',
+    'MST': 'America/Denver',
+    'PST': 'America/Los_Angeles',
+    'PDT': 'America/Los_Angeles',
+    'HST': 'America/Honolulu',
+    'HDT': 'America/Honolulu',
+    'AKST': 'America/Anchorage',
+    'AKDT': 'America/Anchorage',
+    'AST': 'America/Puerto_Rico',
+}
 
 
 def hydrograph_max(df: pd.DataFrame, col_datetime: str, col_flow: str) -> Tuple[float, datetime]:
@@ -28,39 +57,82 @@ def analyze_hydrograph(df: pd.DataFrame, col_datetime: str, col_flow: str, durat
     min_flow, min_datetime = hydrograph_min(df, col_datetime, col_flow)
     avg = df[col_flow].mean()
 
-    df_rolling = df.rolling(window=duration, on=col_datetime).mean()
+    df_dt_q = df[[col_datetime, col_flow]]
+    df_rolling = df_dt_q.rolling(window=duration, on=col_datetime).mean()
     duration_max, duration_max_datetime = hydrograph_max(df_rolling, col_datetime, col_flow)
     duration_min, duration_min_datetime = hydrograph_min(df_rolling, col_datetime, col_flow)
 
     return {
         'max': max_flow,
-        'max_datetime': max_datetime,
+        'max_datetime': max_datetime.isoformat(),
         'min': min_flow,
-        'min_datetime': min_datetime,
+        'min_datetime': min_datetime.isoformat(),
         'avg': avg,
         'duration': duration,
         'duration_max': duration_max,
-        'duration_max_datetime': duration_max_datetime,
+        'duration_max_datetime': duration_max_datetime.isoformat(),
         'duration_min': duration_min,
-        'duration_min_datetime': duration_min_datetime,
+        'duration_min_datetime': duration_min_datetime.isoformat(),
     }
 
 
-def main(csv: str, duration: str):
-    if csv:
-        df = pd.read_csv(csv)
-        col_datetime = df.columns[0]
-        col_flow = df.columns[1]
+def get_usgs_tz(tz_cd: str):
+    return tz.gettz(USGS_TZ_MAPPINGS.get(tz_cd))
+
+
+def localize_usgs_datetime(row: pd.Series) -> pd.Series:
+    tzinfo = USGS_TZ_MAPPINGS.get(row[USGS_COL_TZ])
+    return row[USGS_COL_DATETIME].tz_localize(tzinfo)
+
+
+def get_usgs_flow_col(df: pd.DataFrame) -> str:
+    col_idx_flow = list(df.columns.str.endswith(USGS_COL_FLOW_ENDSWITH)).index(True)
+    col_flow =  df.columns[col_idx_flow]
+    return col_flow
+
+
+def read_usgs_rdb(hydrograph: Union[str, PathLike, StringIO]) -> pd.DataFrame:
+    sep = '\t'
+    df = pd.read_table(hydrograph, sep=sep, comment='#', header=[0, 1])
+    df.columns = df.columns.droplevel(1)
+    df[USGS_COL_DATETIME] = pd.to_datetime(df[USGS_COL_DATETIME], infer_datetime_format=True)
+    df[USGS_COL_DATETIME] = df.apply(localize_usgs_datetime, axis=1)
+    return df
+
+
+def main(hydrograph: Union[str, PathLike, StringIO], duration: str, sep: str,
+         col_idx_dt: int, col_idx_q: int, usgs_rdb: bool, pretty_print: bool,
+         out: Optional[str]):
+    if usgs_rdb:
+        df = read_usgs_rdb(hydrograph)
+        col_datetime = USGS_COL_DATETIME
+        col_flow = get_usgs_flow_col(df)
+    else:
+        df = pd.read_csv(hydrograph, sep=sep)
+        col_datetime = df.columns[col_idx_dt]
+        col_flow = df.columns[col_idx_q]
         df[col_datetime] = pd.to_datetime(df[col_datetime], infer_datetime_format=True)
-        result = analyze_hydrograph(df, col_datetime, col_flow, duration)
-        print(json.dumps(result, default=str))
+    result = analyze_hydrograph(df, col_datetime, col_flow, duration)
+    indent = 2 if pretty_print else None
+    output = json.dumps(result, indent=indent)
+    print(output)
+    if out:
+        with fsspec.open(out, 'w') as o:
+            o.write(output)
+    return
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--csv', help="Path to hydrograph in CSV format")
+    parser.add_argument('hydrograph', default=sys.stdin, nargs='?', help='Path or URL to hydrograph.')
     parser.add_argument('--duration', default="3H",
-                        help=(f"Duration string specifying a rolling window for analysis. Default: \"{DURATION_DEFAULT}\". "
-                              "See: https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases"))
+                        help=(f'Duration string specifying a rolling window for analysis. Default: "{DEFAULT_DURATION}". '
+                              'See: https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases'))
+    parser.add_argument('--sep', default=DEFAULT_SEP, help=f'Column separator. Default: "{DEFAULT_SEP}"')
+    parser.add_argument('--col-idx-dt', default=DEFAULT_COL_IDX_DT, help=f'Datetime column index. Default: {DEFAULT_COL_IDX_DT}')
+    parser.add_argument('--col-idx-q', default=DEFAULT_COL_IDX_Q, help=f'Flow column index. Default: {DEFAULT_COL_IDX_Q}')
+    parser.add_argument('--usgs-rdb', action='store_true', default=DEFAULT_USGS_RDB, help=f'Hydrograph in USGS RDB format. Default: {DEFAULT_USGS_RDB}')
+    parser.add_argument('--pretty-print', action='store_true', default=DEFAULT_PRETTY_PRINT, help=f'Pretty print JSON results. Default: {DEFAULT_PRETTY_PRINT}')
+    parser.add_argument('--out', default=None, help="Output location.")
     args = parser.parse_args()
-    main(args.csv, args.duration)
+    main(args.hydrograph, args.duration, args.sep, args.col_idx_dt, args.col_idx_q, args.usgs_rdb, args.pretty_print, args.out)
