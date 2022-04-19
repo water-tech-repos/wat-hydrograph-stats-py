@@ -11,13 +11,17 @@ import sys
 from typing import Optional, Tuple, Union
 
 
+DEFAULT_STORAGE_OPTIONS = None
 DEFAULT_DURATION = '3H'
 DEFAULT_SEP = ','
 DEFAULT_COL_IDX_DT = 0
 DEFAULT_COL_IDX_Q = 1
 DEFAULT_USGS_RDB = False
 DEFAULT_PRETTY_PRINT = False
+DEFAULT_OUT = None
+DEFAULT_OUT_FSSPEC_KWARGS = None
 
+USGS_SEP = '\t'
 USGS_COL_DATETIME = 'datetime'
 USGS_COL_FLOW_ENDSWITH = '00060'
 USGS_COL_TZ = 'tz_cd'
@@ -91,24 +95,23 @@ def get_usgs_flow_col(df: pd.DataFrame) -> str:
     return col_flow
 
 
-def read_usgs_rdb(hydrograph: Union[str, PathLike, StringIO]) -> pd.DataFrame:
-    sep = '\t'
-    df = pd.read_table(hydrograph, sep=sep, comment='#', header=[0, 1])
+def read_usgs_rdb(hydrograph: Union[str, PathLike, StringIO], storage_options: dict) -> pd.DataFrame:
+    df = pd.read_table(hydrograph, sep=USGS_SEP, comment='#', header=[0, 1], storage_options=storage_options)
     df.columns = df.columns.droplevel(1)
     df[USGS_COL_DATETIME] = pd.to_datetime(df[USGS_COL_DATETIME], infer_datetime_format=True)
     df[USGS_COL_DATETIME] = df.apply(localize_usgs_datetime, axis=1)
     return df
 
 
-def main(hydrograph: Union[str, PathLike, StringIO], duration: str, sep: str,
+def main(hydrograph: Union[str, PathLike, StringIO], storage_options: Optional[dict], duration: str, sep: str,
          col_idx_dt: int, col_idx_q: int, usgs_rdb: bool, pretty_print: bool,
-         out: Optional[str]):
+         out: Optional[str], out_fsspec_kwargs: Optional[dict]):
     if usgs_rdb:
-        df = read_usgs_rdb(hydrograph)
+        df = read_usgs_rdb(hydrograph, storage_options)
         col_datetime = USGS_COL_DATETIME
         col_flow = get_usgs_flow_col(df)
     else:
-        df = pd.read_csv(hydrograph, sep=sep)
+        df = pd.read_csv(hydrograph, sep=sep, storage_options=storage_options)
         col_datetime = df.columns[col_idx_dt]
         col_flow = df.columns[col_idx_q]
         df[col_datetime] = pd.to_datetime(df[col_datetime], infer_datetime_format=True)
@@ -117,22 +120,29 @@ def main(hydrograph: Union[str, PathLike, StringIO], duration: str, sep: str,
     output = json.dumps(result, indent=indent)
     print(output)
     if out:
-        with fsspec.open(out, 'w') as o:
+        out_kwargs = out_fsspec_kwargs if out_fsspec_kwargs else {}
+        with fsspec.open(out, 'w', **out_kwargs) as o:
             o.write(output)
+            o.write('\n')
     return
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('hydrograph', default=sys.stdin, nargs='?', help='Path or URL to hydrograph.')
+    parser.add_argument('--storage-options', default=DEFAULT_STORAGE_OPTIONS, type=json.loads,
+                        help=f"Storage options for hydrograph location; passed to pandas.read_csv. JSON. Default: {DEFAULT_STORAGE_OPTIONS}")
     parser.add_argument('--duration', default="3H",
                         help=(f'Duration string specifying a rolling window for analysis. Default: "{DEFAULT_DURATION}". '
                               'See: https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases'))
     parser.add_argument('--sep', default=DEFAULT_SEP, help=f'Column separator. Default: "{DEFAULT_SEP}"')
     parser.add_argument('--col-idx-dt', default=DEFAULT_COL_IDX_DT, help=f'Datetime column index. Default: {DEFAULT_COL_IDX_DT}')
     parser.add_argument('--col-idx-q', default=DEFAULT_COL_IDX_Q, help=f'Flow column index. Default: {DEFAULT_COL_IDX_Q}')
-    parser.add_argument('--usgs-rdb', action='store_true', default=DEFAULT_USGS_RDB, help=f'Hydrograph in USGS RDB format. Default: {DEFAULT_USGS_RDB}')
+    parser.add_argument('--usgs-rdb', action='store_true', default=DEFAULT_USGS_RDB,
+                        help=f'Hydrograph in USGS RDB format. Overrides column and sep options. Default: {DEFAULT_USGS_RDB}')
     parser.add_argument('--pretty-print', action='store_true', default=DEFAULT_PRETTY_PRINT, help=f'Pretty print JSON results. Default: {DEFAULT_PRETTY_PRINT}')
-    parser.add_argument('--out', default=None, help="Output location.")
+    parser.add_argument('--out', default=DEFAULT_OUT, help=f"Output location. Default: {DEFAULT_OUT}")
+    parser.add_argument('--out-fsspec-kwargs', default=DEFAULT_OUT_FSSPEC_KWARGS, type=json.loads,
+                        help=f"Extra options passed to fsspec.open for writing results. JSON. Default: {DEFAULT_OUT_FSSPEC_KWARGS}")
     args = parser.parse_args()
-    main(args.hydrograph, args.duration, args.sep, args.col_idx_dt, args.col_idx_q, args.usgs_rdb, args.pretty_print, args.out)
+    main(args.hydrograph, args.storage_options, args.duration, args.sep, args.col_idx_dt, args.col_idx_q, args.usgs_rdb, args.pretty_print, args.out, args.out_fsspec_kwargs)

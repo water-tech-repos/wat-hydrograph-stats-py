@@ -40,6 +40,11 @@ $ python hydrograph_stats.py hydrograph.csv --pretty-print
 }
 ```
 
+Hydrograph from `stdin`:
+```
+$ cat hydrograph.csv | python hydrograph_stats.py
+```
+
 Specify duration:
 ```
 $ python hydrograph_stats.py hydrograph.csv --duration 4H15min
