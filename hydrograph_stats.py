@@ -1,16 +1,20 @@
+#!/usr/bin/env python3
+
 import pandas as pd
+import fsspec
+import yaml
 
 import argparse
 from datetime import datetime
 from dateutil import tz
-import fsspec
 from io import StringIO
 import json
 from os import PathLike
 import sys
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 
+DEFAULT_CONFIG = None
 DEFAULT_STORAGE_OPTIONS = None
 DEFAULT_DURATION = '3H'
 DEFAULT_SEP = ','
@@ -103,9 +107,17 @@ def read_usgs_rdb(hydrograph: Union[str, PathLike, StringIO], storage_options: d
     return df
 
 
-def main(hydrograph: Union[str, PathLike, StringIO], storage_options: Optional[dict], duration: str, sep: str,
-         col_idx_dt: int, col_idx_q: int, usgs_rdb: bool, pretty_print: bool,
-         out: Optional[str], out_fsspec_kwargs: Optional[dict]):
+def load_yaml(path: str, storage_options: Optional[dict]) -> dict:
+    with fsspec.open(path, 'r', storage_options=storage_options) as conf:
+        return yaml.load(conf.read(), yaml.Loader)
+
+
+def analyze(hydrograph: Union[str, PathLike, StringIO], wat_manifest: Optional[str], storage_options: Optional[dict],
+            duration: str, sep: str, col_idx_dt: int, col_idx_q: int, usgs_rdb: bool, pretty_print: bool,
+            out: Optional[str], out_fsspec_kwargs: Optional[dict]):
+    config = None
+    if wat_manifest:
+        config = load_yaml(wat_manifest, storage_options)
     if usgs_rdb:
         df = read_usgs_rdb(hydrograph, storage_options)
         col_datetime = USGS_COL_DATETIME
@@ -124,14 +136,15 @@ def main(hydrograph: Union[str, PathLike, StringIO], storage_options: Optional[d
         with fsspec.open(out, 'w', **out_kwargs) as o:
             o.write(output)
             o.write('\n')
-    return
+    return result
 
 
-if __name__ == '__main__':
+def parse_args(raw_args: List[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('hydrograph', default=sys.stdin, nargs='?', help='Path or URL to hydrograph.')
+    parser.add_argument('--wat-manifest', default=DEFAULT_CONFIG, help='WAT mainfest file (YAML). Overrides all other options.')
     parser.add_argument('--storage-options', default=DEFAULT_STORAGE_OPTIONS, type=json.loads,
-                        help=f"Storage options for hydrograph location; passed to pandas.read_csv. JSON. Default: {DEFAULT_STORAGE_OPTIONS}")
+                        help=f"Storage options for hydrograph location or config file. JSON. Default: {DEFAULT_STORAGE_OPTIONS}")
     parser.add_argument('--duration', default="3H",
                         help=(f'Duration string specifying a rolling window for analysis. Default: "{DEFAULT_DURATION}". '
                               'See: https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases'))
@@ -144,5 +157,14 @@ if __name__ == '__main__':
     parser.add_argument('--out', default=DEFAULT_OUT, help=f"Output location. Default: {DEFAULT_OUT}")
     parser.add_argument('--out-fsspec-kwargs', default=DEFAULT_OUT_FSSPEC_KWARGS, type=json.loads,
                         help=f"Extra options passed to fsspec.open for writing results. JSON. Default: {DEFAULT_OUT_FSSPEC_KWARGS}")
-    args = parser.parse_args()
-    main(args.hydrograph, args.storage_options, args.duration, args.sep, args.col_idx_dt, args.col_idx_q, args.usgs_rdb, args.pretty_print, args.out, args.out_fsspec_kwargs)
+    args = parser.parse_args(raw_args)
+    return args
+
+
+def main(args: List[str]):
+    parsed_args = parse_args(args)
+    return analyze(*vars(parsed_args).values())
+
+
+if __name__ == '__main__':
+    main(sys.argv[1:])
