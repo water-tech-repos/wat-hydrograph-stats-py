@@ -1,4 +1,4 @@
-## Input hydrographs and output results specified in wat_payload_az.yml
+## Input hydrographs and output results specified in wat_payload_aws.yml
 ## Note that connection_string's are configured for use with docker-compose.test.yml
 
 # hydrographs:

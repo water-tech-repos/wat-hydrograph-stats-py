@@ -51,6 +51,39 @@ $ ./hydrograph_stats.py hydrograph.csv --pretty-print
 ]
 ```
 
+Multiple hydrographs:
+```
+$ ./hydrograph_stats.py hydrograph.csv hsm1.csv --pretty-print
+[
+  {
+    "max": 47300.0,
+    "max_datetime": "2022-04-09T01:30:00",
+    "min": 14800.0,
+    "min_datetime": "2022-04-15T13:30:00",
+    "avg": 29998.9010989011,
+    "duration": "3H",
+    "duration_max": 47225.0,
+    "duration_max_datetime": "2022-04-09T03:45:00",
+    "duration_min": 14983.333333333334,
+    "duration_min_datetime": "2022-04-15T13:45:00",
+    "hydrograph": "hydrograph.csv"
+  },
+  {
+    "max": 9.447773309400784,
+    "max_datetime": "2018-01-01T16:01:01.000000001-05:00",
+    "min": 2.2485700476373864,
+    "min_datetime": "2018-01-03T17:01:01.000000001-05:00",
+    "avg": 6.084075310536892,
+    "duration": "3H",
+    "duration_max": 9.447773309400786,
+    "duration_max_datetime": "2018-01-01T19:01:01.000000001-05:00",
+    "duration_min": 2.305256687493791,
+    "duration_min_datetime": "2018-01-03T17:01:01.000000001-05:00",
+    "hydrograph": "hsm1.csv"
+  }
+]
+```
+
 Hydrograph from `stdin`:
 ```
 $ cat hydrograph.csv | ./hydrograph_stats.py
