@@ -1,4 +1,5 @@
 from hydrograph_stats import main
+from .resources import *
 
 from azure.storage.blob import BlobServiceClient, ContainerClient, BlobClient
 from azure.core.exceptions import ResourceExistsError
@@ -6,19 +7,6 @@ import pytest
 
 import json
 import os
-
-
-HYDROGRAPH_CSV = 'hydrograph.csv'
-HYDROGRAPH_TXT = 'hydrograph.txt'
-HSM1_CSV = 'hsm1.csv'
-WAT_PAYLOAD_AZ_YML = 'wat_payload_az.yml'
-CONFIG_AZ_YML = 'config_az.yml'
-TESTS_DATA = './tests/data'
-PATH_HYDROGRAPH_CSV = os.path.join(TESTS_DATA, HYDROGRAPH_CSV)
-PATH_HYDROGRAPH_TXT = os.path.join(TESTS_DATA, HYDROGRAPH_TXT)
-PATH_HSM1_CSV = os.path.join(TESTS_DATA, HSM1_CSV)
-PATH_WAT_PAYLOAD_AZ_YML = os.path.join(TESTS_DATA, WAT_PAYLOAD_AZ_YML)
-PATH_CONFIG_AZ_YML = os.path.join(TESTS_DATA, CONFIG_AZ_YML)
 
 
 AZURE_STORAGE_CONNECTION_STRING = os.getenv(
@@ -48,7 +36,7 @@ def get_blob_content(blob_name: str):
     return blob.download_blob().readall()
 
 def setup_module():
-    print('---SETUP---')
+    print('--- AZURE INTEGRATION TESTS : SETUP ---')
     container_client: ContainerClient = AZURE_BLOB_SERVICE_CLIENT.get_container_client(AZURE_CONTAINER)
     try:
         container_client.create_container()
@@ -62,14 +50,14 @@ def setup_module():
 
 
 def teardown_module():
-    print('---TEARDOWN---')
+    print('--- AZURE INTEGRATION TESTS : TEARDOWN ---')
     pass
 
 
 @pytest.mark.integration
 def test_azure_read_csv():
     result = main([
-        f'abfs://mycontainer/{HYDROGRAPH_CSV}',
+        f'abfs://{AZURE_CONTAINER}/{HYDROGRAPH_CSV}',
         '--storage-options', AZURE_STORAGE_OPTIONS,
     ])
     assert result[0]['max'] == 47300.0
@@ -80,7 +68,7 @@ def test_azure_read_csv():
 @pytest.mark.integration
 def test_azure_read_usgs_rdb():
     result = main([
-        f'abfs://mycontainer/{HYDROGRAPH_TXT}',
+        f'abfs://{AZURE_CONTAINER}/{HYDROGRAPH_TXT}',
         '--storage-options', AZURE_STORAGE_OPTIONS,
         '--usgs-rdb'
     ])
@@ -92,9 +80,9 @@ def test_azure_read_usgs_rdb():
 @pytest.mark.integration
 def test_azure_out():
     main([
-        f'abfs://mycontainer/{HYDROGRAPH_CSV}',
+        f'abfs://{AZURE_CONTAINER}/{HYDROGRAPH_CSV}',
         '--storage-options', AZURE_STORAGE_OPTIONS,
-        '--out', f'abfs://mycontainer/results.json',
+        '--out', f'abfs://{AZURE_CONTAINER}/results.json',
         '--out-fsspec-kwargs', AZURE_STORAGE_OPTIONS,
     ])
     assert blob_exists('results.json')
@@ -108,7 +96,7 @@ def test_azure_out():
 @pytest.mark.integration
 def test_azure_wat_payload():
     main([
-        '--wat-payload', f'abfs://mycontainer/{WAT_PAYLOAD_AZ_YML}',
+        '--wat-payload', f'abfs://{AZURE_CONTAINER}/{WAT_PAYLOAD_AZ_YML}',
         '--wat-payload-fsspec-kwargs', AZURE_STORAGE_OPTIONS,
         '--config-fsspec-kwargs', AZURE_STORAGE_OPTIONS,
     ])

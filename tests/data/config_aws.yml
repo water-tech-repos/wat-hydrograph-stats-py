@@ -1,0 +1,23 @@
+## Input hydrographs and output results specified in wat_payload_az.yml
+## Note that connection_string's are configured for use with docker-compose.test.yml
+
+# hydrographs:
+# - ./tests/data/hsm1.csv
+# - ./tests/data/hydrograph.csv
+storage_options:
+  key: 'AKIAIOSFODNN7EXAMPLE'
+  secret: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+  client_kwargs:
+    endpoint_url: http://minio:9990
+duration: 4H15min
+sep: ","
+col_idx_dt: 0
+col_idx_q: 1
+usgs_rdb: false
+pretty_print: true
+# out: ./tests/data/results.json
+out_fsspec_kwargs:
+  key: 'AKIAIOSFODNN7EXAMPLE'
+  secret: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+  client_kwargs:
+    endpoint_url: http://minio:9990
