@@ -255,14 +255,14 @@ def analyze(config: HydrographStatsConfig, wat_payload: Optional[WatPayload] = N
 def parse_args(raw_args: List[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('hydrographs', default=DEFAULT_HYDROGRAPHS, nargs='*', help='Paths or URLs to hydrographs.')
+    parser.add_argument('--storage-options', default=DEFAULT_STORAGE_OPTIONS, type=json.loads,
+                        help=f"Storage options for hydrographs, passed to pandas.read_csv. JSON. Default: {DEFAULT_STORAGE_OPTIONS}")
     parser.add_argument('--wat-payload', default=DEFAULT_WAT_PAYLOAD, help='WAT payload file (YAML).')
     parser.add_argument('--wat-payload-fsspec-kwargs', default=DEFAULT_WAT_PAYLOAD_FSSPEC_KWARGS, type=json.loads,
                         help=f"Extra options passed to fsspec.open to read WAT payload file. JSON. Default: {DEFAULT_WAT_PAYLOAD_FSSPEC_KWARGS}")
     parser.add_argument('--config', default=DEFAULT_CONFIG, help='Configuration file (YAML).')
     parser.add_argument('--config-fsspec-kwargs', default=DEFAULT_CONFIG_FSSPEC_KWARGS, type=json.loads,
                         help=f"Extra options passed to fsspec.open to read config file. JSON. Default: {DEFAULT_CONFIG_FSSPEC_KWARGS}")
-    parser.add_argument('--storage-options', default=DEFAULT_STORAGE_OPTIONS, type=json.loads,
-                        help=f"Storage options for hydrographs. JSON. Default: {DEFAULT_STORAGE_OPTIONS}")
     parser.add_argument('--duration', default="3H",
                         help=(f'Duration string specifying a rolling window for analysis. Default: "{DEFAULT_DURATION}". '
                               'See: https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases'))
@@ -271,7 +271,8 @@ def parse_args(raw_args: List[str]) -> argparse.Namespace:
     parser.add_argument('--col-idx-q', default=DEFAULT_COL_IDX_Q, help=f'Flow column index. Default: {DEFAULT_COL_IDX_Q}')
     parser.add_argument('--usgs-rdb', action='store_true', default=DEFAULT_USGS_RDB,
                         help=f'Hydrograph in USGS RDB format. Overrides column and sep options. Default: {DEFAULT_USGS_RDB}')
-    parser.add_argument('--pretty-print', action='store_true', default=DEFAULT_PRETTY_PRINT, help=f'Pretty print JSON results. Default: {DEFAULT_PRETTY_PRINT}')
+    parser.add_argument('--pretty-print', action='store_true', default=DEFAULT_PRETTY_PRINT,
+                        help=f'Pretty print JSON results. Default: {DEFAULT_PRETTY_PRINT}')
     parser.add_argument('--out', default=DEFAULT_OUT, help=f"Output location. Default: {DEFAULT_OUT}")
     parser.add_argument('--out-fsspec-kwargs', default=DEFAULT_OUT_FSSPEC_KWARGS, type=json.loads,
                         help=f"Extra options passed to fsspec.open for writing results. JSON. Default: {DEFAULT_OUT_FSSPEC_KWARGS}")
