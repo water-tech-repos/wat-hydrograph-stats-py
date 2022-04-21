@@ -17,4 +17,3 @@ services:
     entrypoint: ["pytest", "--verbose", "-m", "integration"]
     depends_on:
       - azurite
-
