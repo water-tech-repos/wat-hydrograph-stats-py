@@ -28,24 +28,27 @@ $ ./hydrograph_stats.py --help
 Local hydrograph CSV:
 ```
 $ ./hydrograph_stats.py hydrograph.csv
-{"max": 47300.0, "max_datetime": "2022-04-09T01:30:00", "min": 14800.0, "min_datetime": "2022-04-15T13:30:00", "avg": 29998.9010989011, "duration": "3H", "duration_max": 47225.0, "duration_max_datetime": "2022-04-09T03:45:00", "duration_min": 14983.333333333334, "duration_min_datetime": "2022-04-15T13:45:00"}
+[{"max": 47300.0, "max_datetime": "2022-04-09T01:30:00", "min": 14800.0, "min_datetime": "2022-04-15T13:30:00", "avg": 29998.9010989011, "duration": "3H", "duration_max": 47225.0, "duration_max_datetime": "2022-04-09T03:45:00", "duration_min": 14983.333333333334, "duration_min_datetime": "2022-04-15T13:45:00", "hydrograph": "hydrograph.csv"}]
 ```
 
 Pretty print:
 ```
 $ ./hydrograph_stats.py hydrograph.csv --pretty-print
-{
-  "max": 47300.0,
-  "max_datetime": "2022-04-09T01:30:00",
-  "min": 14800.0,
-  "min_datetime": "2022-04-15T13:30:00",
-  "avg": 29998.9010989011,
-  "duration": "3H",
-  "duration_max": 47225.0,
-  "duration_max_datetime": "2022-04-09T03:45:00",
-  "duration_min": 14983.333333333334,
-  "duration_min_datetime": "2022-04-15T13:45:00"
-}
+[
+  {
+    "max": 47300.0,
+    "max_datetime": "2022-04-09T01:30:00",
+    "min": 14800.0,
+    "min_datetime": "2022-04-15T13:30:00",
+    "avg": 29998.9010989011,
+    "duration": "3H",
+    "duration_max": 47225.0,
+    "duration_max_datetime": "2022-04-09T03:45:00",
+    "duration_min": 14983.333333333334,
+    "duration_min_datetime": "2022-04-15T13:45:00",
+    "hydrograph": "hydrograph.csv"
+  }
+]
 ```
 
 Hydrograph from `stdin`:

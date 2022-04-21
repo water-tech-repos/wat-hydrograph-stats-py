@@ -282,7 +282,6 @@ def parse_args(raw_args: List[str]) -> argparse.Namespace:
 
 def main(args: List[str]):
     parsed_args = parse_args(args)
-    print(parsed_args)
     if parsed_args.wat_payload:
         wat_payload = WatPayload.from_yaml(parsed_args.wat_payload, parsed_args.wat_payload_fsspec_kwargs)
         config = HydrographStatsConfig.from_yaml(wat_payload.model_configuration_paths[0],
