@@ -10,8 +10,15 @@ import os
 
 HYDROGRAPH_CSV = 'hydrograph.csv'
 HYDROGRAPH_TXT = 'hydrograph.txt'
-PATH_HYDROGRAPH_CSV = os.path.join('./tests/data', HYDROGRAPH_CSV)
-PATH_HYDROGRAPH_TXT = os.path.join('./tests/data', HYDROGRAPH_TXT)
+HSM1_CSV = 'hsm1.csv'
+WAT_PAYLOAD_AZ_YML = 'wat_payload_az.yml'
+CONFIG_AZ_YML = 'config_az.yml'
+TESTS_DATA = './tests/data'
+PATH_HYDROGRAPH_CSV = os.path.join(TESTS_DATA, HYDROGRAPH_CSV)
+PATH_HYDROGRAPH_TXT = os.path.join(TESTS_DATA, HYDROGRAPH_TXT)
+PATH_HSM1_CSV = os.path.join(TESTS_DATA, HSM1_CSV)
+PATH_WAT_PAYLOAD_AZ_YML = os.path.join(TESTS_DATA, WAT_PAYLOAD_AZ_YML)
+PATH_CONFIG_AZ_YML = os.path.join(TESTS_DATA, CONFIG_AZ_YML)
 
 
 AZURE_STORAGE_CONNECTION_STRING = os.getenv(
@@ -47,8 +54,11 @@ def setup_module():
         container_client.create_container()
     except ResourceExistsError:
         print(f'Container {AZURE_CONTAINER} already exists.')
+    upload_blob(PATH_HSM1_CSV, HSM1_CSV)
     upload_blob(PATH_HYDROGRAPH_CSV, HYDROGRAPH_CSV)
     upload_blob(PATH_HYDROGRAPH_TXT, HYDROGRAPH_TXT)
+    upload_blob(PATH_WAT_PAYLOAD_AZ_YML, WAT_PAYLOAD_AZ_YML)
+    upload_blob(PATH_CONFIG_AZ_YML, CONFIG_AZ_YML)
 
 
 def teardown_module():
@@ -62,9 +72,9 @@ def test_azure_read_csv():
         f'abfs://mycontainer/{HYDROGRAPH_CSV}',
         '--storage-options', AZURE_STORAGE_OPTIONS,
     ])
-    assert result['max'] == 47300.0
-    assert result['min'] == 14800.0
-    assert result['duration_max'] == 47225.0
+    assert result[0]['max'] == 47300.0
+    assert result[0]['min'] == 14800.0
+    assert result[0]['duration_max'] == 47225.0
 
 
 @pytest.mark.integration
@@ -74,9 +84,9 @@ def test_azure_read_usgs_rdb():
         '--storage-options', AZURE_STORAGE_OPTIONS,
         '--usgs-rdb'
     ])
-    assert result['max'] == 47300.0
-    assert result['min'] == 14800.0
-    assert result['duration_max'] == 47225.0
+    assert result[0]['max'] == 47300.0
+    assert result[0]['min'] == 14800.0
+    assert result[0]['duration_max'] == 47225.0
 
 
 @pytest.mark.integration
@@ -90,6 +100,19 @@ def test_azure_out():
     assert blob_exists('results.json')
     blob_content = get_blob_content('results.json')
     result = json.loads(blob_content)
-    assert result['max'] == 47300.0
-    assert result['min'] == 14800.0
-    assert result['duration_max'] == 47225.0
+    assert result[0]['max'] == 47300.0
+    assert result[0]['min'] == 14800.0
+    assert result[0]['duration_max'] == 47225.0
+
+
+@pytest.mark.integration
+def test_azure_wat_payload():
+    main([
+        '--wat-payload', f'abfs://mycontainer/{WAT_PAYLOAD_AZ_YML}',
+        '--wat-payload-fsspec-kwargs', AZURE_STORAGE_OPTIONS,
+        '--config-fsspec-kwargs', AZURE_STORAGE_OPTIONS,
+    ])
+    assert blob_exists('results-wat.json')
+    blob_content = get_blob_content('results-wat.json')
+    result = json.loads(blob_content)
+    assert result[0]['max'] == 9.447773309400784

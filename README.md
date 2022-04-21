@@ -10,6 +10,14 @@ $ source ./venv-wat-hydrograph-stats-py/bin/activate
 ```
 
 ## Usage
+### Tests
+
+Integration tests:
+```
+$ ./integration-tests.sh
+```
+
+
 ### Script
 
 Help:
@@ -62,8 +70,8 @@ $ ./hydrograph_stats.py "https://nwis.waterdata.usgs.gov/md/nwis/uv?cb_00060=on&
 
 Hydrograph retrieved from Azure Blob Storage:
 ```
-$ export AZURE_STORAGE_CONNECTION_STRING = 'abc123...'
-$ ./hydrograph_stats.py "abfs://mycontainer/hydrograph.csv"
+$ CONNECTION_STRING="abc123..."
+$ ./hydrograph_stats.py "abfs://mycontainer/hydrograph.csv" --storage-options "{\"connection_string\": \"${CONNECTION_STRING}\"}"
 ```
 
 Write output to a file:
@@ -73,6 +81,22 @@ $ ./hydrograph_stats.py hydrograph.csv --out ./results.json
 
 Write output to Azure Blob Storage:
 ```
-$ export AZURE_STORAGE_CONNECTION_STRING = 'abc123...'
-$ ./hydrograph_stats.py hydrograph.csv --out "abfs://mycontainer/results.json"
+$ CONNECTION_STRING="abc123..."
+$ ./hydrograph_stats.py hydrograph.csv --out "abfs://mycontainer/results.json" --out-fsspec-kwargs "{\"connection_string\": \"${CONNECTION_STRING}\"}"
+```
+
+Config file:
+```
+$ ./hydrograph_stats.py --config config.yaml
+```
+
+WAT payload YAML:
+```
+$ ./hydrograph_stats.py --wat-payload wat_payload.yaml
+```
+
+WAT payload YAML retrieved from Azure Blob Storage:
+```
+$ CONNECTION_STRING="abc123..."
+$ ./hydrograph_stats.py --wat-payload "abfs://mycontainer/wat_payload.yaml" --wat-payload-fsspec-kwargs "{\"connection_string\": \"${CONNECTION_STRING}\"}"
 ```
