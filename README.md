@@ -12,7 +12,7 @@ $ source ./venv-wat-hydrograph-stats-py/bin/activate
 ## Usage
 ### Tests
 
-Integration tests:
+Build test container and run integration tests:
 ```
 $ ./integration-tests.sh
 ```
