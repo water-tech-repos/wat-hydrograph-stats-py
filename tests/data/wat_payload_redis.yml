@@ -1,0 +1,26 @@
+target_plugin: hydrograph_stats
+model_configuration:
+  model_name: stats
+  model_configuration_paths:
+  - redis://redis:6379/0#config_redis.yml
+model_links:
+  linked_inputs:
+  - name: hydrograph1
+    source: redis://redis:6379/0#hsm1.csv
+    parameter: flow
+    format: .csv
+  required_outputs:
+  - name: summaryStatOutput
+    parameter: flow
+    format: .json
+event_config:
+  output_destination: redis://redis:6379/0#results-wat
+  realization:
+    index: 1
+    seed: 1234
+  event:
+    index: 1
+    seed: 5678
+  time_window:
+    starttime: 2018-01-01T01:01:01.000000001-05:00
+    endtime: 2020-12-31T01:01:01.000000001-05:00

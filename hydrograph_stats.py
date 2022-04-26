@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
 from dataclasses import dataclass
-import pandas as pd
 import fsspec
+import pandas as pd
+from redis import Redis
+import requests
 import yaml
 
 import argparse
@@ -13,6 +15,7 @@ import json
 from os import PathLike
 import sys
 from typing import List, Optional, Tuple, Union
+from urllib.parse import urlparse
 
 
 DEFAULT_HYDROGRAPHS = []
@@ -104,17 +107,18 @@ def get_usgs_flow_col(df: pd.DataFrame) -> str:
     return col_flow
 
 
-def read_usgs_rdb(hydrograph: Union[str, PathLike, StringIO], storage_options: dict) -> pd.DataFrame:
-    df = pd.read_table(hydrograph, sep=USGS_SEP, comment='#', header=[0, 1], storage_options=storage_options)
+def read_usgs_rdb(hydrograph: Union[str, PathLike, StringIO]) -> pd.DataFrame:
+# def read_usgs_rdb(hydrograph: Union[str, PathLike, StringIO], storage_options: dict) -> pd.DataFrame:
+    df = pd.read_table(hydrograph, sep=USGS_SEP, comment='#', header=[0, 1])
     df.columns = df.columns.droplevel(1)
     df[USGS_COL_DATETIME] = pd.to_datetime(df[USGS_COL_DATETIME], infer_datetime_format=True)
     df[USGS_COL_DATETIME] = df.apply(localize_usgs_datetime, axis=1)
     return df
 
 
-def load_yaml(path: str, fsspec_kwargs: Optional[dict] = None) -> dict:
-    with fsspec.open(path, 'r', **fsspec_kwargs) as conf:
-        return yaml.load(conf.read(), yaml.Loader)
+def load_yaml(uri: str, fsspec_kwargs: dict = {}) -> dict:
+    text = get_text(uri, fsspec_kwargs=fsspec_kwargs)
+    return yaml.load(text, yaml.Loader)
 
 
 @dataclass
@@ -214,9 +218,36 @@ class WatPayload:
 
     @classmethod
     def from_yaml(cls, config_yaml: str, fsspec_kwargs: Optional[dict] = None) -> 'WatPayload':
-        print(fsspec_kwargs)
         config_dict = load_yaml(config_yaml, fsspec_kwargs)
         return cls.from_dict(config_dict)
+
+
+def get_text(uri: str, fsspec_kwargs: dict = {}) -> str:
+    uri_parsed = urlparse(uri)
+    scheme = uri_parsed.scheme
+    if scheme == 'redis' or scheme == 'rediss':
+        r = Redis.from_url(uri, decode_responses=True)
+        key = uri_parsed.fragment
+        text = r.get(key)
+    elif scheme == 'http' or scheme == 'https':
+        text = requests.get(uri).text
+    else:
+        with fsspec.open(uri, 'r', **fsspec_kwargs) as f:
+            text = f.read()
+    return str(text)
+
+
+def write_output(uri: str, output: str, fsspec_kwargs: dict = {}):
+    uri_parsed = urlparse(uri)
+    scheme = uri_parsed.scheme
+    if scheme == 'redis' or scheme == 'rediss':
+        r = Redis.from_url(uri, decode_responses=True)
+        key = uri_parsed.fragment
+        r.set(key, output)
+    else:
+        with fsspec.open(uri, 'w', **fsspec_kwargs) as o:
+            o.write(output)
+            o.write('\n')
 
 
 def analyze(config: HydrographStatsConfig, wat_payload: Optional[WatPayload] = None) -> dict:
@@ -227,28 +258,25 @@ def analyze(config: HydrographStatsConfig, wat_payload: Optional[WatPayload] = N
         hydrographs = config.hydrographs
         out = config.out
     results = []
-    for hydrograph in hydrographs:
+    for hydrograph_uri in hydrographs:
+        hydrograph = StringIO(get_text(hydrograph_uri, config.storage_options))
         if config.usgs_rdb:
-            df = read_usgs_rdb(hydrograph, config.storage_options)
+            df = read_usgs_rdb(hydrograph)
             col_datetime = USGS_COL_DATETIME
             col_flow = get_usgs_flow_col(df)
         else:
-            df = pd.read_csv(hydrograph, sep=config.sep, parse_dates=[config.col_idx_dt],
-                            storage_options=config.storage_options)
+            df = pd.read_csv(hydrograph, sep=config.sep, parse_dates=[config.col_idx_dt])
             col_datetime = df.columns[config.col_idx_dt]
             col_flow = df.columns[config.col_idx_q]
             df[col_datetime] = pd.to_datetime(df[col_datetime], infer_datetime_format=True)
         result = analyze_hydrograph(df, col_datetime, col_flow, config.duration)
-        result['hydrograph'] = hydrograph
+        result['hydrograph'] = hydrograph_uri
         results.append(result)
     indent = 2 if config.pretty_print else None
     output = json.dumps(results, indent=indent)
     print(output)
     if out:
-        out_kwargs = config.out_fsspec_kwargs if config.out_fsspec_kwargs else {}
-        with fsspec.open(out, 'w', **out_kwargs) as o:
-            o.write(output)
-            o.write('\n')
+        write_output(out, output, config.out_fsspec_kwargs)
     return results
 
 
