@@ -110,6 +110,13 @@ $ CONNECTION_STRING="abc123..."
 $ ./hydrograph_stats.py "abfs://mycontainer/hydrograph.csv" --storage-options "{\"connection_string\": \"${CONNECTION_STRING}\"}"
 ```
 
+Hydrograph from S3:
+```
+$ AWS_KEY="abc123..."
+$ AWS_SECRET="secret123..."
+$ ./hydrograph_stats.py "s3://mybucket/hydrograph.csv" --storage-options "{\"key\": \"${AWS_KEY}\", \"secret\": \"${AWS_SECRET}\"}"
+```
+
 Write output to a file:
 ```
 $ ./hydrograph_stats.py hydrograph.csv --out ./results.json
@@ -119,6 +126,11 @@ Write output to Azure Blob Storage:
 ```
 $ CONNECTION_STRING="abc123..."
 $ ./hydrograph_stats.py hydrograph.csv --out "abfs://mycontainer/results.json" --out-fsspec-kwargs "{\"connection_string\": \"${CONNECTION_STRING}\"}"
+```
+
+Hydrograph from Redis key/value pair, results written to Redis key:
+```
+$ ./hydrograph_stats.py "redis://some.redis.host/0#hydrograph.csv" --out "redis://some.redis.host/0#results"
 ```
 
 Config file:
