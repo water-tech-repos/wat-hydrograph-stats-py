@@ -23,19 +23,25 @@ S3_STORAGE_OPTIONS = json.dumps({
 S3_BUCKET = 'mybucket'
 
 
-S3 = boto3.resource('s3', endpoint_url=S3_ENDPOINT,
+s3 = boto3.resource('s3', endpoint_url=S3_ENDPOINT,
                     aws_access_key_id=AWS_ACCESS_KEY_ID, aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
                     config=Config(signature_version='s3v4'), region_name='us-east-1')
 
 
 def setup_module():
     print('--- S3 INTEGRATION TESTS : SETUP ---')
-    S3.create_bucket(Bucket=S3_BUCKET)
-    S3.Object(S3_BUCKET, HSM1_CSV).put(Body=open(PATH_HSM1_CSV, 'rb'))
-    S3.Object(S3_BUCKET, HYDROGRAPH_CSV).put(Body=open(PATH_HYDROGRAPH_CSV, 'rb'))
-    S3.Object(S3_BUCKET, HYDROGRAPH_TXT).put(Body=open(PATH_HYDROGRAPH_TXT, 'rb'))
-    S3.Object(S3_BUCKET, WAT_PAYLOAD_AWS_YML).put(Body=open(PATH_WAT_PAYLOAD_AWS_YML, 'rb'))
-    S3.Object(S3_BUCKET, CONFIG_AWS_YML).put(Body=open(PATH_CONFIG_AWS_YML, 'rb'))
+    try:
+        s3.create_bucket(Bucket=S3_BUCKET)
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'BucketAlreadyOwnedByYou':
+            pass  # bucket already exists
+        else:
+            raise
+    s3.Object(S3_BUCKET, HSM1_CSV).put(Body=open(PATH_HSM1_CSV, 'rb'))
+    s3.Object(S3_BUCKET, HYDROGRAPH_CSV).put(Body=open(PATH_HYDROGRAPH_CSV, 'rb'))
+    s3.Object(S3_BUCKET, HYDROGRAPH_TXT).put(Body=open(PATH_HYDROGRAPH_TXT, 'rb'))
+    s3.Object(S3_BUCKET, WAT_PAYLOAD_AWS_YML).put(Body=open(PATH_WAT_PAYLOAD_AWS_YML, 'rb'))
+    s3.Object(S3_BUCKET, CONFIG_AWS_YML).put(Body=open(PATH_CONFIG_AWS_YML, 'rb'))
 
 
 def teardown_module():
@@ -46,7 +52,7 @@ def teardown_module():
 def s3_object_exists(key: str):
     # https://stackoverflow.com/a/33843019
     try:
-        S3.Object(S3_BUCKET, key).load()
+        s3.Object(S3_BUCKET, key).load()
     except ClientError as e:
         if e.response['Error']['Code'] == '404':
             return False
@@ -56,7 +62,7 @@ def s3_object_exists(key: str):
 
 
 def get_s3_object_content(key: str):
-    obj = S3.Object(S3_BUCKET, key)
+    obj = s3.Object(S3_BUCKET, key)
     return obj.get()['Body'].read()
 
 
