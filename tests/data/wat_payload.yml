@@ -1,0 +1,30 @@
+target_plugin: hydrograph_stats
+plugin_image_and_tag: tbd/hydrographstats:v0.0.2
+model_configuration:
+  model_name: hydrograph_stats
+  model_configuration_paths:
+  - /data/config_aws.yml
+model_links:
+  linked_inputs:
+  - name: hsm.csv
+    parameter: flow
+    format: csv
+    resource_info:
+      scheme: minio:9000/configs
+      authority: /data/realization_0/event_7
+      fragment: hsm1.csv
+  required_outputs:
+  - name: results-wat.json
+    parameter: scalar
+    format: json
+event_config:
+  output_destination: /data/realization_0/event_7
+  realization:
+    index: 0
+    seed: 4494286321627776427
+  event:
+    index: 7
+    seed: 5559254042425429666
+  time_window:
+    starttime: 2018-01-01T01:01:01.000000001Z
+    endtime: 2020-12-31T01:01:01.000000001Z
