@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from dataclasses import dataclass
+import resource
 import fsspec
 import pandas as pd
 from redis import Redis
@@ -12,6 +13,7 @@ from dataclasses import field
 from dateutil import tz
 from io import StringIO
 import json
+import os
 from os import PathLike
 import sys
 from typing import List, Optional, Tuple, Union
@@ -161,19 +163,32 @@ class HydrographStatsConfig:
 
 
 @dataclass
+class WatResourceInfo:
+    scheme: str
+    authority: str
+    fragment: str
+
+
+@dataclass
 class WatModelLink:
     name: str
-    source: str
     parameter: str
     format: str
+    source: Optional[str]
+    resource_info: Optional[WatResourceInfo]
 
     @classmethod
     def from_dict(cls, d: dict) -> 'WatModelLink':
         name = d['name']
-        source = d['source']
         parameter = d['parameter']
         format = d['format']
-        return cls(name, source, parameter, format)
+        source = d.get('source')
+        r_info = d.get('resource_info')
+        if r_info:
+            resource_info = WatResourceInfo(r_info['scheme'], r_info['authority'], r_info['fragment'])
+        else:
+            resource_info = None
+        return cls(name, parameter, format, source, resource_info)
 
 
 @dataclass
@@ -204,17 +219,17 @@ class WatEventConfig:
 class WatPayload:
     model_configuration_paths: List[str]
     linked_inputs: List[WatModelLink]
-    # required_outputs: List[WatModelLink]
+    required_outputs: List[WatModelLink]
     event_config: WatEventConfig
 
     @classmethod
     def from_dict(cls, d: dict) -> 'WatPayload':
         model_configuration_paths: List[str] = d['model_configuration']['model_configuration_paths']
         linked_inputs: List[WatModelLink] = [WatModelLink.from_dict(i) for i in d['model_links']['linked_inputs']]
-        # required_outputs: List[WatModelLink] = [WatModelLink.from_dict(i) for i in d['model_links']['required_outputs']]
+        required_outputs: List[WatModelLink] = [WatModelLink.from_dict(i) for i in d['model_links']['required_outputs']]
         event_config: WatEventConfig = WatEventConfig.from_dict(d['event_config'])
         # return cls(model_configuration_paths, linked_inputs, required_outputs, event_config)
-        return cls(model_configuration_paths, linked_inputs, event_config)
+        return cls(model_configuration_paths, linked_inputs, required_outputs, event_config)
 
     @classmethod
     def from_yaml(cls, config_yaml: str, fsspec_kwargs: Optional[dict] = None) -> 'WatPayload':
@@ -251,14 +266,19 @@ def write_output(uri: str, output: str, fsspec_kwargs: dict = {}):
 
 
 def analyze(config: HydrographStatsConfig, wat_payload: Optional[WatPayload] = None) -> dict:
+    s3_bucket = os.environ.get('S3_BUCKET', None)
     if wat_payload:
-        hydrographs = [h.source for h in wat_payload.linked_inputs]
+        hydrographs = [h.source or os.path.join(h.resource_info.authority, h.resource_info.fragment)
+                       for h in wat_payload.linked_inputs]
         out = wat_payload.event_config.output_destination
     else:
         hydrographs = config.hydrographs
         out = config.out
     results = []
+    print(hydrographs)
     for hydrograph_uri in hydrographs:
+        if s3_bucket:
+            hydrograph_uri = f's3://{s3_bucket}/' + hydrograph_uri.lstrip('/')
         hydrograph = StringIO(get_text(hydrograph_uri, config.storage_options))
         if config.usgs_rdb:
             df = read_usgs_rdb(hydrograph)
@@ -276,7 +296,12 @@ def analyze(config: HydrographStatsConfig, wat_payload: Optional[WatPayload] = N
     output = json.dumps(results, indent=indent)
     print(output)
     if out:
-        write_output(out, output, config.out_fsspec_kwargs)
+        if wat_payload and s3_bucket:
+            output_name = wat_payload.required_outputs[0].name
+            output_path = f's3://{s3_bucket}/' + os.path.join(out, output_name).lstrip('/')
+        else:
+            output_path = out
+        write_output(output_path, output, config.out_fsspec_kwargs)
     return results
 
 
@@ -312,7 +337,13 @@ def main(args: List[str]):
     parsed_args = parse_args(args)
     if parsed_args.wat_payload:
         wat_payload = WatPayload.from_yaml(parsed_args.wat_payload, parsed_args.wat_payload_fsspec_kwargs)
-        config = HydrographStatsConfig.from_yaml(wat_payload.model_configuration_paths[0],
+        s3_bucket = os.environ.get('S3_BUCKET')
+        if s3_bucket:
+            config_path = f's3://{s3_bucket}/' + wat_payload.model_configuration_paths[0].lstrip('/')
+        else:
+            config_path = wat_payload.model_configuration_paths[0]
+        print(config_path)
+        config = HydrographStatsConfig.from_yaml(config_path,
                                                  parsed_args.config_fsspec_kwargs)
     elif parsed_args.config:
         wat_payload = None
