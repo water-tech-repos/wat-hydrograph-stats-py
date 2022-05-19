@@ -5,6 +5,7 @@ import boto3
 from botocore.client import Config
 from botocore.exceptions import ClientError
 import pytest
+from redis import Redis
 
 import json
 import os
@@ -21,6 +22,10 @@ S3_STORAGE_OPTIONS = json.dumps({
     },
 })
 S3_BUCKET = 'myotherbucket'
+
+REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+REDIS_DB = int(os.getenv('REDIS_DB', 0))
 
 
 s3 = boto3.resource('s3', endpoint_url=S3_ENDPOINT,
@@ -121,3 +126,6 @@ def test_azure_wat_payload():
     blob_content = get_s3_object_content('data/realization_0/event_7/results-wat.json')
     result = json.loads(blob_content)
     assert result[0]['max'] == 9.447773309400784
+    r = Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
+    key = 'tbd/hydrographstats:v0.0.2_hydrograph_stats_R0_E7'
+    assert r.get(key) == 'done'

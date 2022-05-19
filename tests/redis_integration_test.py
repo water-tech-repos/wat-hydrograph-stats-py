@@ -72,7 +72,9 @@ def test_redis_wat_payload():
     main([
         '--wat-payload', f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}#{WAT_PAYLOAD_REDIS_YML}',
     ])
-    r = Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
+    r = Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
     assert r.exists('results-wat')
     result = json.loads(r.get('results-wat'))
     assert result[0]['max'] == 9.447773309400784
+    key = 'None_hydrograph_stats_R1_E1'
+    assert r.get(key) == 'done'
