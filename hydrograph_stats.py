@@ -217,19 +217,23 @@ class WatEventConfig:
 
 @dataclass
 class WatPayload:
+    target_plugin: str
     model_configuration_paths: List[str]
     linked_inputs: List[WatModelLink]
     required_outputs: List[WatModelLink]
     event_config: WatEventConfig
+    plugin_image_and_tag: Optional[str]
 
     @classmethod
     def from_dict(cls, d: dict) -> 'WatPayload':
+        target_plugin: str = d['target_plugin']
         model_configuration_paths: List[str] = d['model_configuration']['model_configuration_paths']
         linked_inputs: List[WatModelLink] = [WatModelLink.from_dict(i) for i in d['model_links']['linked_inputs']]
         required_outputs: List[WatModelLink] = [WatModelLink.from_dict(i) for i in d['model_links']['required_outputs']]
         event_config: WatEventConfig = WatEventConfig.from_dict(d['event_config'])
         # return cls(model_configuration_paths, linked_inputs, required_outputs, event_config)
-        return cls(model_configuration_paths, linked_inputs, required_outputs, event_config)
+        plugin_image_and_tag: Optional[str] = d.get('plugin_image_and_tag')
+        return cls(target_plugin, model_configuration_paths, linked_inputs, required_outputs, event_config, plugin_image_and_tag)
 
     @classmethod
     def from_yaml(cls, config_yaml: str, fsspec_kwargs: Optional[dict] = None) -> 'WatPayload':
@@ -265,9 +269,39 @@ def write_output(uri: str, output: str, fsspec_kwargs: dict = {}):
             o.write('\n')
 
 
+def get_redis_client_or_none() -> Redis:
+    host = os.environ.get('REDIS_HOST')
+    port = os.environ.get('REDIS_PORT', 6379)
+    db = os.environ.get('REDIS_DB', 0)
+    password = os.environ.get('REDIS_PASWORD')
+    if host:
+        return Redis(host=host, port=port, password=password, db=db)
+    return None
+
+
+def get_redis_status_key(wat_payload: WatPayload) -> str:
+    key = f'{wat_payload.plugin_image_and_tag}_{wat_payload.target_plugin}_R{wat_payload.event_config.realization_index}_E{wat_payload.event_config.event_index}'
+    return key
+
+
+def set_redis_in_progress(wat_payload: WatPayload):
+    r = get_redis_client_or_none()
+    if r:
+        key = get_redis_status_key(wat_payload)
+        r.set(key, 'in progress')
+
+
+def set_redis_done(wat_payload: WatPayload):
+    r = get_redis_client_or_none()
+    if r:
+        key = get_redis_status_key(wat_payload)
+        r.set(key, 'done')
+
+
 def analyze(config: HydrographStatsConfig, wat_payload: Optional[WatPayload] = None) -> dict:
-    s3_bucket = os.environ.get('S3_BUCKET', None)
+    s3_bucket = os.environ.get('S3_BUCKET')
     if wat_payload:
+        set_redis_in_progress(wat_payload)
         hydrographs = [h.source or os.path.join(h.resource_info.authority, h.resource_info.fragment)
                        for h in wat_payload.linked_inputs]
         out = wat_payload.event_config.output_destination
@@ -275,7 +309,6 @@ def analyze(config: HydrographStatsConfig, wat_payload: Optional[WatPayload] = N
         hydrographs = config.hydrographs
         out = config.out
     results = []
-    print(hydrographs)
     for hydrograph_uri in hydrographs:
         if s3_bucket:
             hydrograph_uri = f's3://{s3_bucket}/' + hydrograph_uri.lstrip('/')
@@ -302,6 +335,8 @@ def analyze(config: HydrographStatsConfig, wat_payload: Optional[WatPayload] = N
         else:
             output_path = out
         write_output(output_path, output, config.out_fsspec_kwargs)
+    if wat_payload:
+        set_redis_done(wat_payload)
     return results
 
 
@@ -342,7 +377,6 @@ def main(args: List[str]):
             config_path = f's3://{s3_bucket}/' + wat_payload.model_configuration_paths[0].lstrip('/')
         else:
             config_path = wat_payload.model_configuration_paths[0]
-        print(config_path)
         config = HydrographStatsConfig.from_yaml(config_path,
                                                  parsed_args.config_fsspec_kwargs)
     elif parsed_args.config:

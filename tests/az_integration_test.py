@@ -4,6 +4,7 @@ from .resources import *
 from azure.storage.blob import BlobServiceClient, ContainerClient, BlobClient
 from azure.core.exceptions import ResourceExistsError
 import pytest
+from redis import Redis
 
 import json
 import os
@@ -18,6 +19,10 @@ AZURE_BLOB_SERVICE_CLIENT: BlobServiceClient = BlobServiceClient.from_connection
 AZURE_STORAGE_OPTIONS = json.dumps({
     'connection_string': AZURE_STORAGE_CONNECTION_STRING
 })
+
+REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+REDIS_DB = int(os.getenv('REDIS_DB', 0))
 
 
 def upload_blob(file_path: str, blob_name: str):
@@ -104,3 +109,6 @@ def test_azure_wat_payload():
     blob_content = get_blob_content('results-wat.json')
     result = json.loads(blob_content)
     assert result[0]['max'] == 9.447773309400784
+    r = Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
+    key = 'None_hydrograph_stats_R1_E1'
+    assert r.get(key) == 'done'
