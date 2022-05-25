@@ -8,7 +8,7 @@ storage_options:
   key: 'AKIAIOSFODNN7EXAMPLE'
   secret: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
   client_kwargs:
-    endpoint_url: http://minio:9990
+    endpoint_url: http://minio:9900
 duration: 4H15min
 sep: ","
 col_idx_dt: 0
@@ -20,4 +20,4 @@ out_fsspec_kwargs:
   key: 'AKIAIOSFODNN7EXAMPLE'
   secret: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
   client_kwargs:
-    endpoint_url: http://minio:9990
+    endpoint_url: http://minio:9900

@@ -37,9 +37,9 @@ def test_redis_read_csv():
     result = main([
         f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}#{HYDROGRAPH_CSV}',
     ])
-    assert result[0]['max'] == 47300.0
-    assert result[0]['min'] == 14800.0
-    assert result[0]['duration_max'] == 47225.0
+    assert result[0]['max'] == pytest.approx(47300.0)
+    assert result[0]['min'] == pytest.approx(14800.0)
+    assert result[0]['duration_max'] == pytest.approx(47225.0)
 
 
 @pytest.mark.integration
@@ -48,9 +48,9 @@ def test_redis_read_usgs_rdb():
         f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}#{HYDROGRAPH_TXT}',
         '--usgs-rdb'
     ])
-    assert result[0]['max'] == 47300.0
-    assert result[0]['min'] == 14800.0
-    assert result[0]['duration_max'] == 47225.0
+    assert result[0]['max'] == pytest.approx(47300.0)
+    assert result[0]['min'] == pytest.approx(14800.0)
+    assert result[0]['duration_max'] == pytest.approx(47225.0)
 
 
 @pytest.mark.integration
@@ -62,9 +62,9 @@ def test_redis_out():
     r = Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
     assert r.exists('results')
     result = json.loads(r.get('results'))
-    assert result[0]['max'] == 47300.0
-    assert result[0]['min'] == 14800.0
-    assert result[0]['duration_max'] == 47225.0
+    assert result[0]['max'] == pytest.approx(47300.0)
+    assert result[0]['min'] == pytest.approx(14800.0)
+    assert result[0]['duration_max'] == pytest.approx(47225.0)
 
 
 @pytest.mark.integration
@@ -75,6 +75,6 @@ def test_redis_wat_payload():
     r = Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
     assert r.exists('results-wat')
     result = json.loads(r.get('results-wat'))
-    assert result[0]['max'] == 9.447773309400784
+    assert result[0]['max'] == pytest.approx(9.447773309400784)
     key = 'None_hydrograph_stats_R1_E1'
     assert r.get(key) == 'done'

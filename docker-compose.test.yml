@@ -4,18 +4,18 @@ services:
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite
     ports:
-      - "10000:10000"
-    entrypoint: ["azurite-blob", "--blobHost", "0.0.0.0", "--blobPort", "10000"]
+      - "11000:11000"
+    entrypoint: ["azurite-blob", "--blobHost", "0.0.0.0", "--blobPort", "11000"]
 
   minio:
     image: minio/minio
     environment:
       - MINIO_ROOT_USER=AKIAIOSFODNN7EXAMPLE
       - MINIO_ROOT_PASSWORD=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-    command: server /data --address ":9990" --console-address ":9991"
+    command: server /data --address ":9900" --console-address ":9901"
     ports:
-      - '9990:9990'
-      - '9991:9991'
+      - '9900:9900'
+      - '9901:9901'
 
   redis:
     image: redis
@@ -26,8 +26,8 @@ services:
       - ./tests:/opt/hydrograph_stats/tests
       - ${PWD}/pytest.ini:/opt/hydrograph_stats/pytest.ini
     environment:
-      - AZ_CONNECTION_STRING=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
-      - S3_ENDPOINT=http://minio:9990
+      - AZ_CONNECTION_STRING=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:11000/devstoreaccount1;
+      - S3_ENDPOINT=http://minio:9900
       - REDIS_HOST=redis
     entrypoint: ["pytest", "--verbose", "-m", "integration"]
     depends_on:
