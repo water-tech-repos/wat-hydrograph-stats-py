@@ -12,7 +12,7 @@ import os
 
 AZURE_STORAGE_CONNECTION_STRING = os.getenv(
     "AZ_CONNECTION_STRING",
-    "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
+    "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:11000/devstoreaccount1;"
 )
 AZURE_CONTAINER = 'mycontainer'
 AZURE_BLOB_SERVICE_CLIENT: BlobServiceClient = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
@@ -65,9 +65,9 @@ def test_azure_read_csv():
         f'abfs://{AZURE_CONTAINER}/{HYDROGRAPH_CSV}',
         '--storage-options', AZURE_STORAGE_OPTIONS,
     ])
-    assert result[0]['max'] == 47300.0
-    assert result[0]['min'] == 14800.0
-    assert result[0]['duration_max'] == 47225.0
+    assert result[0]['max'] == pytest.approx(47300.0)
+    assert result[0]['min'] == pytest.approx(14800.0)
+    assert result[0]['duration_max'] == pytest.approx(47225.0)
 
 
 @pytest.mark.integration
@@ -77,9 +77,9 @@ def test_azure_read_usgs_rdb():
         '--storage-options', AZURE_STORAGE_OPTIONS,
         '--usgs-rdb'
     ])
-    assert result[0]['max'] == 47300.0
-    assert result[0]['min'] == 14800.0
-    assert result[0]['duration_max'] == 47225.0
+    assert result[0]['max'] == pytest.approx(47300.0)
+    assert result[0]['min'] == pytest.approx(14800.0)
+    assert result[0]['duration_max'] == pytest.approx(47225.0)
 
 
 @pytest.mark.integration
@@ -93,9 +93,9 @@ def test_azure_out():
     assert blob_exists('results.json')
     blob_content = get_blob_content('results.json')
     result = json.loads(blob_content)
-    assert result[0]['max'] == 47300.0
-    assert result[0]['min'] == 14800.0
-    assert result[0]['duration_max'] == 47225.0
+    assert result[0]['max'] == pytest.approx(47300.0)
+    assert result[0]['min'] == pytest.approx(14800.0)
+    assert result[0]['duration_max'] == pytest.approx(47225.0)
 
 
 @pytest.mark.integration
@@ -108,7 +108,7 @@ def test_azure_wat_payload():
     assert blob_exists('results-wat.json')
     blob_content = get_blob_content('results-wat.json')
     result = json.loads(blob_content)
-    assert result[0]['max'] == 9.447773309400784
+    assert result[0]['max'] == pytest.approx(9.447773309400784)
     r = Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
     key = 'None_hydrograph_stats_R1_E1'
     assert r.get(key) == 'done'

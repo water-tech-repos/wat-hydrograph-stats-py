@@ -82,9 +82,9 @@ def get_s3_object_content(key: str):
 #         f's3://{S3_BUCKET}/{HYDROGRAPH_CSV}',
 #         '--storage-options', S3_STORAGE_OPTIONS,
 #     ])
-#     assert result[0]['max'] == 47300.0
-#     assert result[0]['min'] == 14800.0
-#     assert result[0]['duration_max'] == 47225.0
+#     assert result[0]['max'] == pytest.approx(47300.0)
+#     assert result[0]['min'] == pytest.approx(14800.0)
+#     assert result[0]['duration_max'] == pytest.approx(47225.0)
 
 
 # @pytest.mark.integration
@@ -94,9 +94,9 @@ def get_s3_object_content(key: str):
 #         '--storage-options', S3_STORAGE_OPTIONS,
 #         '--usgs-rdb'
 #     ])
-#     assert result[0]['max'] == 47300.0
-#     assert result[0]['min'] == 14800.0
-#     assert result[0]['duration_max'] == 47225.0
+#     assert result[0]['max'] == pytest.approx(47300.0)
+#     assert result[0]['min'] == pytest.approx(14800.0)
+#     assert result[0]['duration_max'] == pytest.approx(47225.0)
 
 
 # @pytest.mark.integration
@@ -110,13 +110,13 @@ def get_s3_object_content(key: str):
 #     assert s3_object_exists('results.json')
 #     obj_content = get_s3_object_content('results.json')
 #     result = json.loads(obj_content)
-#     assert result[0]['max'] == 47300.0
-#     assert result[0]['min'] == 14800.0
-#     assert result[0]['duration_max'] == 47225.0
+#     assert result[0]['max'] == pytest.approx(47300.0)
+#     assert result[0]['min'] == pytest.approx(14800.0)
+#     assert result[0]['duration_max'] == pytest.approx(47225.0)
 
 
 @pytest.mark.integration
-def test_azure_wat_payload():
+def test_aws_wat_payload():
     main([
         '--wat-payload', f's3://{S3_BUCKET}/{WAT_PAYLOAD_YML}',
         '--wat-payload-fsspec-kwargs', S3_STORAGE_OPTIONS,
@@ -125,7 +125,7 @@ def test_azure_wat_payload():
     assert s3_object_exists('data/realization_0/event_7/results-wat.json')
     blob_content = get_s3_object_content('data/realization_0/event_7/results-wat.json')
     result = json.loads(blob_content)
-    assert result[0]['max'] == 9.447773309400784
+    assert result[0]['max'] == pytest.approx(9.447773309400784)
     r = Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
     key = 'tbd/hydrographstats:v0.0.2_hydrograph_stats_R0_E7'
     assert r.get(key) == 'done'

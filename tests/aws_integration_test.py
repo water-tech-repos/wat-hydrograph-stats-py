@@ -11,7 +11,7 @@ import json
 import os
 
 
-S3_ENDPOINT = os.getenv('S3_ENDPOINT', 'http://localhost:9990')
+S3_ENDPOINT = os.getenv('S3_ENDPOINT', 'http://localhost:9900')
 AWS_ACCESS_KEY_ID = 'AKIAIOSFODNN7EXAMPLE'
 AWS_SECRET_ACCESS_KEY = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
 S3_STORAGE_OPTIONS = json.dumps({
@@ -77,9 +77,9 @@ def test_aws_read_csv():
         f's3://{S3_BUCKET}/{HYDROGRAPH_CSV}',
         '--storage-options', S3_STORAGE_OPTIONS,
     ])
-    assert result[0]['max'] == 47300.0
-    assert result[0]['min'] == 14800.0
-    assert result[0]['duration_max'] == 47225.0
+    assert result[0]['max'] == pytest.approx(47300.0)
+    assert result[0]['min'] == pytest.approx(14800.0)
+    assert result[0]['duration_max'] == pytest.approx(47225.0)
 
 
 @pytest.mark.integration
@@ -89,9 +89,9 @@ def test_aws_read_usgs_rdb():
         '--storage-options', S3_STORAGE_OPTIONS,
         '--usgs-rdb'
     ])
-    assert result[0]['max'] == 47300.0
-    assert result[0]['min'] == 14800.0
-    assert result[0]['duration_max'] == 47225.0
+    assert result[0]['max'] == pytest.approx(47300.0)
+    assert result[0]['min'] == pytest.approx(14800.0)
+    assert result[0]['duration_max'] == pytest.approx(47225.0)
 
 
 @pytest.mark.integration
@@ -105,13 +105,13 @@ def test_aws_out():
     assert s3_object_exists('results.json')
     obj_content = get_s3_object_content('results.json')
     result = json.loads(obj_content)
-    assert result[0]['max'] == 47300.0
-    assert result[0]['min'] == 14800.0
-    assert result[0]['duration_max'] == 47225.0
+    assert result[0]['max'] == pytest.approx(47300.0)
+    assert result[0]['min'] == pytest.approx(14800.0)
+    assert result[0]['duration_max'] == pytest.approx(47225.0)
 
 
 @pytest.mark.integration
-def test_azure_wat_payload():
+def test_aws_wat_payload():
     main([
         '--wat-payload', f's3://{S3_BUCKET}/{WAT_PAYLOAD_AWS_YML}',
         '--wat-payload-fsspec-kwargs', S3_STORAGE_OPTIONS,
@@ -120,7 +120,7 @@ def test_azure_wat_payload():
     assert s3_object_exists('results-wat.json')
     blob_content = get_s3_object_content('results-wat.json')
     result = json.loads(blob_content)
-    assert result[0]['max'] == 9.447773309400784
+    assert result[0]['max'] == pytest.approx(9.447773309400784)
     r = Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
     key = 'None_hydrograph_stats_R1_E1'
     assert r.get(key) == 'done'
