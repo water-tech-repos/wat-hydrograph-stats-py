@@ -31,6 +31,8 @@ DEFAULT_SEP = ','
 DEFAULT_COL_IDX_DT = 0
 DEFAULT_COL_IDX_Q = 1
 DEFAULT_USGS_RDB = False
+DEFAULT_DSS = False
+DEFAULT_REGULAR = True
 DEFAULT_PRETTY_PRINT = False
 DEFAULT_OUT = None
 DEFAULT_OUT_FSSPEC_KWARGS = None
@@ -132,6 +134,8 @@ class HydrographStatsConfig:
     col_idx_dt: int = DEFAULT_COL_IDX_DT
     col_idx_q: int = DEFAULT_COL_IDX_Q
     usgs_rdb: bool = DEFAULT_USGS_RDB
+    dss: bool = DEFAULT_DSS
+    regular: bool = DEFAULT_REGULAR
     pretty_print: bool = DEFAULT_PRETTY_PRINT
     out: Optional[str] = DEFAULT_OUT
     out_fsspec_kwargs: Optional[dict] = DEFAULT_OUT_FSSPEC_KWARGS
@@ -146,6 +150,8 @@ class HydrographStatsConfig:
         config.col_idx_dt = d.get('col_idx_dt', DEFAULT_COL_IDX_DT)
         config.col_idx_q = d.get('col_idx_q', DEFAULT_COL_IDX_Q)
         config.usgs_rdb = d.get('usgs_rdb', DEFAULT_USGS_RDB)
+        config.dss = d.get('dss', DEFAULT_DSS)
+        config.regular = d.get('dss', DEFAULT_REGULAR)
         config.pretty_print = d.get('pretty_print', DEFAULT_PRETTY_PRINT)
         config.out = d.get('out', DEFAULT_OUT)
         config.out_fsspec_kwargs = d.get('out_fsspec_kwargs', DEFAULT_OUT_FSSPEC_KWARGS)
@@ -359,6 +365,10 @@ def parse_args(raw_args: List[str]) -> argparse.Namespace:
     parser.add_argument('--col-idx-q', default=DEFAULT_COL_IDX_Q, help=f'Flow column index. Default: {DEFAULT_COL_IDX_Q}')
     parser.add_argument('--usgs-rdb', action='store_true', default=DEFAULT_USGS_RDB,
                         help=f'Hydrograph in USGS RDB format. Overrides column and sep options. Default: {DEFAULT_USGS_RDB}')
+    parser.add_argument('--dss', action='store_true', default=DEFAULT_DSS,
+                        help=f'Hydrograph in HEC-DSS format. Specify --regular False if data is irregular. Default: {DEFAULT_DSS}')
+    parser.add_argument('--regular', action='store_true', default=DEFAULT_REGULAR,
+                        help=f'If False, the dss data is treated as irregular time-series. Default: {DEFAULT_REGULAR}')
     parser.add_argument('--pretty-print', action='store_true', default=DEFAULT_PRETTY_PRINT,
                         help=f'Pretty print JSON results. Default: {DEFAULT_PRETTY_PRINT}')
     parser.add_argument('--out', default=DEFAULT_OUT, help=f"Output location. Default: {DEFAULT_OUT}")
