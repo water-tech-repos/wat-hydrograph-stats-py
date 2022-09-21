@@ -45,6 +45,7 @@ def setup_module():
     s3.Object(S3_BUCKET, HSM1_CSV).put(Body=open(PATH_HSM1_CSV, 'rb'))
     s3.Object(S3_BUCKET, HYDROGRAPH_CSV).put(Body=open(PATH_HYDROGRAPH_CSV, 'rb'))
     s3.Object(S3_BUCKET, HYDROGRAPH_TXT).put(Body=open(PATH_HYDROGRAPH_TXT, 'rb'))
+    s3.Object(S3_BUCKET, HYDROGRAPH_DSS).put(Body=open(PATH_HYDROGRAPH_DSS, 'rb'))
     s3.Object(S3_BUCKET, WAT_PAYLOAD_AWS_YML).put(Body=open(PATH_WAT_PAYLOAD_AWS_YML, 'rb'))
     s3.Object(S3_BUCKET, CONFIG_AWS_YML).put(Body=open(PATH_CONFIG_AWS_YML, 'rb'))
 
@@ -124,3 +125,14 @@ def test_aws_wat_payload():
     r = Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
     key = 'None_hydrograph_stats_R1_E1'
     assert r.get(key) == 'done'
+
+@pytest.math.integration
+def test_aws_read_dss():
+    result = main([
+        f's3://{S3_BUCKET}/{HYDROGRAPH_DSS}:/REGULAR/TIMESERIES/FLOW//1HOUR/Ex1/',
+        '--storage-options', S3_STORAGE_OPTIONS,
+        '--dss',
+    ])
+    assert result[0]['max'] == pytest.approx(10000.0)
+    assert result[0]['min'] == pytest.approx(-3.4028234663852886e+38)
+    assert result[0]['duration_max'] == pytest.approx(5166.666666666667)
