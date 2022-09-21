@@ -18,6 +18,7 @@ from os import PathLike
 import sys
 from typing import List, Optional, Tuple, Union
 from urllib.parse import urlparse
+from pydsstools.heclib.dss import HecDss
 
 
 DEFAULT_HYDROGRAPHS = []
@@ -56,6 +57,9 @@ USGS_TZ_MAPPINGS = {
     'AKDT': 'America/Anchorage',
     'AST': 'America/Puerto_Rico',
 }
+
+DSS_COL_DATETIME = 'datetime'
+DSS_COL_FLOW = 'flow'
 
 
 def hydrograph_max(df: pd.DataFrame, col_datetime: str, col_flow: str) -> Tuple[float, pd.Timestamp]:
@@ -119,6 +123,14 @@ def read_usgs_rdb(hydrograph: Union[str, PathLike, StringIO]) -> pd.DataFrame:
     df[USGS_COL_DATETIME] = df.apply(localize_usgs_datetime, axis=1)
     return df
 
+def read_dss(hydrograph: Union[str, PathLike, StringIO], regular: bool = True) -> pd.DataFrame:
+    dss_file, pathname = hydrograph.split(':')
+    with HecDss.Open(dss_file) as fid:
+        ts = fid.read_ts(pathname,regular=regular)
+        df = pd.DataFrame(columns=[DSS_COL_DATETIME,DSS_COL_FLOW])
+        df[DSS_COL_DATETIME] = ts.pytimes
+        df[DSS_COL_FLOW] = ts.values
+    return df
 
 def load_yaml(uri: str, fsspec_kwargs: dict = {}) -> dict:
     text = get_text(uri, fsspec_kwargs=fsspec_kwargs)
@@ -323,6 +335,10 @@ def analyze(config: HydrographStatsConfig, wat_payload: Optional[WatPayload] = N
             df = read_usgs_rdb(hydrograph)
             col_datetime = USGS_COL_DATETIME
             col_flow = get_usgs_flow_col(df)
+        elif config.dss:
+            df = read_dss(hydrograph, config.pathname, config.regular)
+            col_datetime = DSS_COL_DATETIME
+            col_flow = DSS_COL_FLOW
         else:
             df = pd.read_csv(hydrograph, sep=config.sep, parse_dates=[config.col_idx_dt])
             col_datetime = df.columns[config.col_idx_dt]
@@ -366,7 +382,7 @@ def parse_args(raw_args: List[str]) -> argparse.Namespace:
     parser.add_argument('--usgs-rdb', action='store_true', default=DEFAULT_USGS_RDB,
                         help=f'Hydrograph in USGS RDB format. Overrides column and sep options. Default: {DEFAULT_USGS_RDB}')
     parser.add_argument('--dss', action='store_true', default=DEFAULT_DSS,
-                        help=f'Hydrograph in HEC-DSS format. Specify --regular False if data is irregular. Default: {DEFAULT_DSS}')
+                        help=f'Hydrograph in HEC-DSS format <filepath>:<pathname>. Specify --regular False if data is irregular. Default: {DEFAULT_DSS}')
     parser.add_argument('--regular', action='store_true', default=DEFAULT_REGULAR,
                         help=f'If False, the dss data is treated as irregular time-series. Default: {DEFAULT_REGULAR}')
     parser.add_argument('--pretty-print', action='store_true', default=DEFAULT_PRETTY_PRINT,
