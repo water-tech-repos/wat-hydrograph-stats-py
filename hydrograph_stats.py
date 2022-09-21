@@ -45,7 +45,7 @@ USGS_TZ_MAPPINGS = {
     'CST': 'America/Chicago',
     'CDT': 'America/Chicago',
     'MST': 'America/Denver',
-    'MST': 'America/Denver',
+    'MDT': 'America/Denver',
     'PST': 'America/Los_Angeles',
     'PDT': 'America/Los_Angeles',
     'HST': 'America/Honolulu',
