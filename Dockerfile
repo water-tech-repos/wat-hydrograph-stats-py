@@ -2,7 +2,7 @@ FROM python:3.8-slim
 
 # pydsstools is not available in a package manager, so we need to download and install it ourselves
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-    && apt-get -y install --no-install-recommends wget
+    && apt-get -y install --no-install-recommends wget gfortran
 
 RUN mkdir /opt/hydrograph_stats
 WORKDIR /opt/hydrograph_stats
