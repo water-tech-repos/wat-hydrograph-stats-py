@@ -34,7 +34,6 @@ DEFAULT_COL_IDX_DT = 0
 DEFAULT_COL_IDX_Q = 1
 DEFAULT_USGS_RDB = False
 DEFAULT_DSS = False
-DEFAULT_REGULAR = True
 DEFAULT_PRETTY_PRINT = False
 DEFAULT_OUT = None
 DEFAULT_OUT_FSSPEC_KWARGS = None
@@ -129,10 +128,10 @@ def read_usgs_rdb(hydrograph: Union[str, PathLike, StringIO]) -> pd.DataFrame:
     return df
 
 
-def read_dss(hydrograph: Union[str, PathLike, StringIO], regular: bool = True) -> pd.DataFrame:
-    dss_file, pathname = hydrograph.split(':')
+def read_dss(hydrograph: Union[str, PathLike, StringIO], irregular: bool) -> pd.DataFrame:
+    dss_file, pathname = hydrograph.rsplit(':', 1)
     with HecDss.Open(dss_file) as fid:
-        ts = fid.read_ts(pathname, regular=regular)
+        ts = fid.read_ts(pathname, regular=not irregular)
         df = pd.DataFrame(columns=[DSS_COL_DATETIME, DSS_COL_FLOW])
         df[DSS_COL_DATETIME] = ts.pytimes
         df[DSS_COL_FLOW] = ts.values.tolist()
@@ -154,7 +153,7 @@ class HydrographStatsConfig:
     col_idx_q: int = DEFAULT_COL_IDX_Q
     usgs_rdb: bool = DEFAULT_USGS_RDB
     dss: bool = DEFAULT_DSS
-    regular: bool = DEFAULT_REGULAR
+    irregular: bool = False
     pretty_print: bool = DEFAULT_PRETTY_PRINT
     out: Optional[str] = DEFAULT_OUT
     out_fsspec_kwargs: Optional[dict] = DEFAULT_OUT_FSSPEC_KWARGS
@@ -171,7 +170,7 @@ class HydrographStatsConfig:
         config.col_idx_q = d.get('col_idx_q', DEFAULT_COL_IDX_Q)
         config.usgs_rdb = d.get('usgs_rdb', DEFAULT_USGS_RDB)
         config.dss = d.get('dss', DEFAULT_DSS)
-        config.regular = d.get('dss', DEFAULT_REGULAR)
+        config.irregular = d.get('irregular', False)
         config.pretty_print = d.get('pretty_print', DEFAULT_PRETTY_PRINT)
         config.out = d.get('out', DEFAULT_OUT)
         config.out_fsspec_kwargs = d.get(
@@ -271,7 +270,7 @@ class WatPayload:
         return cls.from_dict(config_dict)
 
 
-def get_text(uri: str, fsspec_kwargs: dict = {}) -> Union[str,bytes]:
+def get_text(uri: str, fsspec_kwargs: dict = {}) -> Union[str, bytes]:
     # None cannot be unpacked with **
     fsspec_kwargs = dict() if fsspec_kwargs is None else fsspec_kwargs
     uri_parsed = urlparse(uri)
@@ -284,10 +283,11 @@ def get_text(uri: str, fsspec_kwargs: dict = {}) -> Union[str,bytes]:
         return str(requests.get(uri).text)
     else:
         mode = 'r'
-        if(os.path.splitext(uri)[1] == '.dss'):
+        if (os.path.splitext(uri)[1] == '.dss'):
             # read the bytes if this is a dss file
             mode = 'rb'
         with fsspec.open(uri, mode, **fsspec_kwargs) as f:
+            print(uri)
             return f.read()
 
 
@@ -355,17 +355,19 @@ def analyze(config: HydrographStatsConfig, wat_payload: Optional[WatPayload] = N
             col_datetime = USGS_COL_DATETIME
             col_flow = get_usgs_flow_col(df)
         elif config.dss:
-            dss_filepath, dss_pathname = hydrograph_uri.split(':')
+            dss_filepath, dss_pathname = hydrograph_uri.rsplit(':', 1)
             if s3_bucket:
                 hydrograph_uri = f's3://{s3_bucket}/' + \
                     dss_filepath.lstrip('/')
             else:
                 hydrograph_uri = dss_filepath
-            hydrograph_dss_bytes = get_text(hydrograph_uri, config.storage_options)
-            temp_dss_path = os.path.join(tempfile.gettempdir(), os.path.basename(dss_filepath))
+            hydrograph_dss_bytes = get_text(
+                hydrograph_uri, config.storage_options)
+            temp_dss_path = os.path.join(
+                tempfile.gettempdir(), os.path.basename(dss_filepath))
             with open(temp_dss_path, 'wb') as f:
                 f.write(hydrograph_dss_bytes)
-            df = read_dss(temp_dss_path + ":" + dss_pathname, config.regular)
+            df = read_dss(temp_dss_path + ":" + dss_pathname, config.irregular)
             col_datetime = DSS_COL_DATETIME
             col_flow = DSS_COL_FLOW
         else:
@@ -426,9 +428,9 @@ def parse_args(raw_args: List[str]) -> argparse.Namespace:
     parser.add_argument('--usgs-rdb', action='store_true', default=DEFAULT_USGS_RDB,
                         help=f'Hydrograph in USGS RDB format. Overrides column and sep options. Default: {DEFAULT_USGS_RDB}')
     parser.add_argument('--dss', action='store_true', default=DEFAULT_DSS,
-                        help=f'Hydrograph in HEC-DSS format <filepath>:<pathname>. Specify --regular False if data is irregular. Default: {DEFAULT_DSS}')
-    parser.add_argument('--regular', action='store_true', default=DEFAULT_REGULAR,
-                        help=f'If False, the dss data is treated as irregular time-series. Default: {DEFAULT_REGULAR}')
+                        help=f'Hydrograph in HEC-DSS format <filepath>:<pathname>. Specify --irregular if data is irregular. Default: {DEFAULT_DSS}')
+    parser.add_argument('--irregular', action='store_true',
+                        help=f'If specified, the dss data is treated as irregular time-series, otherwise it is treated as regular time-series.')
     parser.add_argument('--pretty-print', action='store_true', default=DEFAULT_PRETTY_PRINT,
                         help=f'Pretty print JSON results. Default: {DEFAULT_PRETTY_PRINT}')
     parser.add_argument('--out', default=DEFAULT_OUT,

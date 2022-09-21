@@ -126,7 +126,7 @@ def test_aws_wat_payload():
     key = 'None_hydrograph_stats_R1_E1'
     assert r.get(key) == 'done'
 
-@pytest.math.integration
+@pytest.mark.integration
 def test_aws_read_dss():
     result = main([
         f's3://{S3_BUCKET}/{HYDROGRAPH_DSS}:/REGULAR/TIMESERIES/FLOW//1HOUR/Ex1/',
