@@ -160,3 +160,11 @@ WAT payload YAML retrieved from Azure Blob Storage:
 $ CONNECTION_STRING="abc123..."
 $ ./hydrograph_stats.py --wat-payload "abfs://mycontainer/wat_payload.yaml" --wat-payload-fsspec-kwargs "{\"connection_string\": \"${CONNECTION_STRING}\"}"
 ```
+
+DSS file from S3
+```
+$ AWS_KEY="abc123..."
+$ AWS_SECRET="secret123..."
+$ ./hydrograph_stats.py "s3://mybucket/hydrograph.dss:/REGULAR/TIMESERIES/FLOW//1HOUR/Ex1/" --dss --storage-options "{\"key\": \"${AWS_KEY}\", \"secret\": \"${AWS_SECRET}\"}"
+```
+If time series is irregular you should also use the --irregular flag, otherwise time series data is assumed to be regular.
