@@ -8,6 +8,18 @@ $ python -m venv venv-wat-hydrograph-stats-py
 $ source ./venv-wat-hydrograph-stats-py/bin/activate
 (venv-wat-hydrograph-stats-py) $ pip install -r requirements.txt
 ```
+Install pydsstools from the wheel file for your system here https://github.com/gyanz/pydsstools
+
+## Using the Dev Container
+Instead of doing the developer setup above, you can choose to develop inside the dev container. This will give you a more consistent environment to where the code will run in production.
+
+1. Clone this repository if you haven't already `git clone https://github.com/water-tech-repos/wat-hydrograph-stats-py`
+2. Download and install VSCode if you don't have it https://code.visualstudio.com/
+3. Download and install Docker Desktop if you don't have it https://www.docker.com/products/docker-desktop/
+4. Install the Remote Development extension pack in VSCode if you don't have it
+5. Press ctrl + shift + P and select *Remote-Containers: Rebuild and Reopen Container*
+
+As the container is built, project dependencies will be installed. Once it completes you will be able to develop from inside of the container.
 
 ## Usage
 ### Tests
@@ -148,3 +160,11 @@ WAT payload YAML retrieved from Azure Blob Storage:
 $ CONNECTION_STRING="abc123..."
 $ ./hydrograph_stats.py --wat-payload "abfs://mycontainer/wat_payload.yaml" --wat-payload-fsspec-kwargs "{\"connection_string\": \"${CONNECTION_STRING}\"}"
 ```
+
+DSS file from S3
+```
+$ AWS_KEY="abc123..."
+$ AWS_SECRET="secret123..."
+$ ./hydrograph_stats.py "s3://mybucket/hydrograph.dss:/REGULAR/TIMESERIES/FLOW//1HOUR/Ex1/" --dss --storage-options "{\"key\": \"${AWS_KEY}\", \"secret\": \"${AWS_SECRET}\"}"
+```
+If time series is irregular you should also use the --irregular flag, otherwise time series data is assumed to be regular.

@@ -50,6 +50,7 @@ def setup_module():
     upload_blob(PATH_HSM1_CSV, HSM1_CSV)
     upload_blob(PATH_HYDROGRAPH_CSV, HYDROGRAPH_CSV)
     upload_blob(PATH_HYDROGRAPH_TXT, HYDROGRAPH_TXT)
+    upload_blob(PATH_HYDROGRAPH_DSS, HYDROGRAPH_DSS)
     upload_blob(PATH_WAT_PAYLOAD_AZ_YML, WAT_PAYLOAD_AZ_YML)
     upload_blob(PATH_CONFIG_AZ_YML, CONFIG_AZ_YML)
 
@@ -112,3 +113,14 @@ def test_azure_wat_payload():
     r = Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
     key = 'None_hydrograph_stats_R1_E1'
     assert r.get(key) == 'done'
+
+@pytest.mark.integration
+def test_azure_read_dss():
+    result = main([
+        f'abfs://{AZURE_CONTAINER}/{HYDROGRAPH_DSS}:/REGULAR/TIMESERIES/FLOW//1HOUR/Ex1/',
+        '--storage-options', AZURE_STORAGE_OPTIONS,
+        '--dss',
+    ])
+    assert result[0]['max'] == pytest.approx(10000.0)
+    assert result[0]['min'] == pytest.approx(-3.4028234663852886e+38)
+    assert result[0]['duration_max'] == pytest.approx(5166.666666666667)

@@ -18,6 +18,8 @@ from os import PathLike
 import sys
 from typing import List, Optional, Tuple, Union
 from urllib.parse import urlparse
+from pydsstools.heclib.dss import HecDss
+import tempfile
 
 
 DEFAULT_HYDROGRAPHS = []
@@ -31,6 +33,7 @@ DEFAULT_SEP = ','
 DEFAULT_COL_IDX_DT = 0
 DEFAULT_COL_IDX_Q = 1
 DEFAULT_USGS_RDB = False
+DEFAULT_DSS = False
 DEFAULT_PRETTY_PRINT = False
 DEFAULT_OUT = None
 DEFAULT_OUT_FSSPEC_KWARGS = None
@@ -45,7 +48,7 @@ USGS_TZ_MAPPINGS = {
     'CST': 'America/Chicago',
     'CDT': 'America/Chicago',
     'MST': 'America/Denver',
-    'MST': 'America/Denver',
+    'MDT': 'America/Denver',
     'PST': 'America/Los_Angeles',
     'PDT': 'America/Los_Angeles',
     'HST': 'America/Honolulu',
@@ -54,6 +57,9 @@ USGS_TZ_MAPPINGS = {
     'AKDT': 'America/Anchorage',
     'AST': 'America/Puerto_Rico',
 }
+
+DSS_COL_DATETIME = 'datetime'
+DSS_COL_FLOW = 'flow'
 
 
 def hydrograph_max(df: pd.DataFrame, col_datetime: str, col_flow: str) -> Tuple[float, pd.Timestamp]:
@@ -77,8 +83,10 @@ def analyze_hydrograph(df: pd.DataFrame, col_datetime: str, col_flow: str, durat
 
     df_dt_q = df[[col_datetime, col_flow]]
     df_rolling = df_dt_q.rolling(window=duration, on=col_datetime).mean()
-    duration_max, duration_max_datetime = hydrograph_max(df_rolling, col_datetime, col_flow)
-    duration_min, duration_min_datetime = hydrograph_min(df_rolling, col_datetime, col_flow)
+    duration_max, duration_max_datetime = hydrograph_max(
+        df_rolling, col_datetime, col_flow)
+    duration_min, duration_min_datetime = hydrograph_min(
+        df_rolling, col_datetime, col_flow)
 
     return {
         'max': max_flow,
@@ -104,17 +112,29 @@ def localize_usgs_datetime(row: pd.Series) -> pd.Series:
 
 
 def get_usgs_flow_col(df: pd.DataFrame) -> str:
-    col_idx_flow = list(df.columns.str.endswith(USGS_COL_FLOW_ENDSWITH)).index(True)
-    col_flow =  df.columns[col_idx_flow]
+    col_idx_flow = list(df.columns.str.endswith(
+        USGS_COL_FLOW_ENDSWITH)).index(True)
+    col_flow = df.columns[col_idx_flow]
     return col_flow
 
 
 def read_usgs_rdb(hydrograph: Union[str, PathLike, StringIO]) -> pd.DataFrame:
-# def read_usgs_rdb(hydrograph: Union[str, PathLike, StringIO], storage_options: dict) -> pd.DataFrame:
+    # def read_usgs_rdb(hydrograph: Union[str, PathLike, StringIO], storage_options: dict) -> pd.DataFrame:
     df = pd.read_table(hydrograph, sep=USGS_SEP, comment='#', header=[0, 1])
     df.columns = df.columns.droplevel(1)
-    df[USGS_COL_DATETIME] = pd.to_datetime(df[USGS_COL_DATETIME], infer_datetime_format=True)
+    df[USGS_COL_DATETIME] = pd.to_datetime(
+        df[USGS_COL_DATETIME], infer_datetime_format=True)
     df[USGS_COL_DATETIME] = df.apply(localize_usgs_datetime, axis=1)
+    return df
+
+
+def read_dss(hydrograph: Union[str, PathLike, StringIO], irregular: bool) -> pd.DataFrame:
+    dss_file, pathname = hydrograph.rsplit(':', 1)
+    with HecDss.Open(dss_file) as fid:
+        ts = fid.read_ts(pathname, regular=not irregular)
+        df = pd.DataFrame(columns=[DSS_COL_DATETIME, DSS_COL_FLOW])
+        df[DSS_COL_DATETIME] = ts.pytimes
+        df[DSS_COL_FLOW] = ts.values.tolist()
     return df
 
 
@@ -132,6 +152,8 @@ class HydrographStatsConfig:
     col_idx_dt: int = DEFAULT_COL_IDX_DT
     col_idx_q: int = DEFAULT_COL_IDX_Q
     usgs_rdb: bool = DEFAULT_USGS_RDB
+    dss: bool = DEFAULT_DSS
+    irregular: bool = False
     pretty_print: bool = DEFAULT_PRETTY_PRINT
     out: Optional[str] = DEFAULT_OUT
     out_fsspec_kwargs: Optional[dict] = DEFAULT_OUT_FSSPEC_KWARGS
@@ -140,15 +162,19 @@ class HydrographStatsConfig:
     def from_dict(cls, d: dict) -> 'HydrographStatsConfig':
         config = cls()
         config.hydrographs = d.get('hydrographs', DEFAULT_HYDROGRAPHS)
-        config.storage_options = d.get('storage_options', DEFAULT_STORAGE_OPTIONS)
+        config.storage_options = d.get(
+            'storage_options', DEFAULT_STORAGE_OPTIONS)
         config.duration = d.get('duration', DEFAULT_DURATION)
         config.sep = d.get('sep', DEFAULT_SEP)
         config.col_idx_dt = d.get('col_idx_dt', DEFAULT_COL_IDX_DT)
         config.col_idx_q = d.get('col_idx_q', DEFAULT_COL_IDX_Q)
         config.usgs_rdb = d.get('usgs_rdb', DEFAULT_USGS_RDB)
+        config.dss = d.get('dss', DEFAULT_DSS)
+        config.irregular = d.get('irregular', False)
         config.pretty_print = d.get('pretty_print', DEFAULT_PRETTY_PRINT)
         config.out = d.get('out', DEFAULT_OUT)
-        config.out_fsspec_kwargs = d.get('out_fsspec_kwargs', DEFAULT_OUT_FSSPEC_KWARGS)
+        config.out_fsspec_kwargs = d.get(
+            'out_fsspec_kwargs', DEFAULT_OUT_FSSPEC_KWARGS)
         return config
 
     @classmethod
@@ -185,7 +211,8 @@ class WatModelLink:
         source = d.get('source')
         r_info = d.get('resource_info')
         if r_info:
-            resource_info = WatResourceInfo(r_info['scheme'], r_info['authority'], r_info['fragment'])
+            resource_info = WatResourceInfo(
+                r_info['scheme'], r_info['authority'], r_info['fragment'])
         else:
             resource_info = None
         return cls(name, parameter, format, source, resource_info)
@@ -200,7 +227,6 @@ class WatEventConfig:
     event_seed: int
     starttime: pd.Timestamp
     endtime: pd.Timestamp
-
 
     @classmethod
     def from_dict(cls, d: dict) -> 'WatEventConfig':
@@ -228,9 +254,12 @@ class WatPayload:
     def from_dict(cls, d: dict) -> 'WatPayload':
         target_plugin: str = d['target_plugin']
         model_configuration_paths: List[str] = d['model_configuration']['model_configuration_paths']
-        linked_inputs: List[WatModelLink] = [WatModelLink.from_dict(i) for i in d['model_links']['linked_inputs']]
-        required_outputs: List[WatModelLink] = [WatModelLink.from_dict(i) for i in d['model_links']['required_outputs']]
-        event_config: WatEventConfig = WatEventConfig.from_dict(d['event_config'])
+        linked_inputs: List[WatModelLink] = [WatModelLink.from_dict(
+            i) for i in d['model_links']['linked_inputs']]
+        required_outputs: List[WatModelLink] = [WatModelLink.from_dict(
+            i) for i in d['model_links']['required_outputs']]
+        event_config: WatEventConfig = WatEventConfig.from_dict(
+            d['event_config'])
         # return cls(model_configuration_paths, linked_inputs, required_outputs, event_config)
         plugin_image_and_tag: Optional[str] = d.get('plugin_image_and_tag')
         return cls(target_plugin, model_configuration_paths, linked_inputs, required_outputs, event_config, plugin_image_and_tag)
@@ -241,19 +270,25 @@ class WatPayload:
         return cls.from_dict(config_dict)
 
 
-def get_text(uri: str, fsspec_kwargs: dict = {}) -> str:
+def get_text(uri: str, fsspec_kwargs: dict = {}) -> Union[str, bytes]:
+    # None cannot be unpacked with **
+    fsspec_kwargs = dict() if fsspec_kwargs is None else fsspec_kwargs
     uri_parsed = urlparse(uri)
     scheme = uri_parsed.scheme
     if scheme == 'redis' or scheme == 'rediss':
         r = Redis.from_url(uri, decode_responses=True)
         key = uri_parsed.fragment
-        text = r.get(key)
+        return str(r.get(key))
     elif scheme == 'http' or scheme == 'https':
-        text = requests.get(uri).text
+        return str(requests.get(uri).text)
     else:
-        with fsspec.open(uri, 'r', **fsspec_kwargs) as f:
-            text = f.read()
-    return str(text)
+        mode = 'r'
+        if (os.path.splitext(uri)[1] == '.dss'):
+            # read the bytes if this is a dss file
+            mode = 'rb'
+        with fsspec.open(uri, mode, **fsspec_kwargs) as f:
+            print(uri)
+            return f.read()
 
 
 def write_output(uri: str, output: str, fsspec_kwargs: dict = {}):
@@ -310,19 +345,45 @@ def analyze(config: HydrographStatsConfig, wat_payload: Optional[WatPayload] = N
         out = config.out
     results = []
     for hydrograph_uri in hydrographs:
-        if s3_bucket:
-            hydrograph_uri = f's3://{s3_bucket}/' + hydrograph_uri.lstrip('/')
-        hydrograph = StringIO(get_text(hydrograph_uri, config.storage_options))
         if config.usgs_rdb:
+            if s3_bucket:
+                hydrograph_uri = f's3://{s3_bucket}/' + \
+                    hydrograph_uri.lstrip('/')
+            hydrograph = StringIO(
+                get_text(hydrograph_uri, config.storage_options))
             df = read_usgs_rdb(hydrograph)
             col_datetime = USGS_COL_DATETIME
             col_flow = get_usgs_flow_col(df)
+        elif config.dss:
+            dss_filepath, dss_pathname = hydrograph_uri.rsplit(':', 1)
+            if s3_bucket:
+                hydrograph_uri = f's3://{s3_bucket}/' + \
+                    dss_filepath.lstrip('/')
+            else:
+                hydrograph_uri = dss_filepath
+            hydrograph_dss_bytes = get_text(
+                hydrograph_uri, config.storage_options)
+            temp_dss_path = os.path.join(
+                tempfile.gettempdir(), os.path.basename(dss_filepath))
+            with open(temp_dss_path, 'wb') as f:
+                f.write(hydrograph_dss_bytes)
+            df = read_dss(temp_dss_path + ":" + dss_pathname, config.irregular)
+            col_datetime = DSS_COL_DATETIME
+            col_flow = DSS_COL_FLOW
         else:
-            df = pd.read_csv(hydrograph, sep=config.sep, parse_dates=[config.col_idx_dt])
+            if s3_bucket:
+                hydrograph_uri = f's3://{s3_bucket}/' + \
+                    hydrograph_uri.lstrip('/')
+            hydrograph = StringIO(
+                get_text(hydrograph_uri, config.storage_options))
+            df = pd.read_csv(hydrograph, sep=config.sep,
+                             parse_dates=[config.col_idx_dt])
             col_datetime = df.columns[config.col_idx_dt]
             col_flow = df.columns[config.col_idx_q]
-            df[col_datetime] = pd.to_datetime(df[col_datetime], infer_datetime_format=True)
-        result = analyze_hydrograph(df, col_datetime, col_flow, config.duration)
+            df[col_datetime] = pd.to_datetime(
+                df[col_datetime], infer_datetime_format=True)
+        result = analyze_hydrograph(
+            df, col_datetime, col_flow, config.duration)
         result['hydrograph'] = hydrograph_uri
         results.append(result)
     indent = 2 if config.pretty_print else None
@@ -331,7 +392,8 @@ def analyze(config: HydrographStatsConfig, wat_payload: Optional[WatPayload] = N
     if out:
         if wat_payload and s3_bucket:
             output_name = wat_payload.required_outputs[0].name
-            output_path = f's3://{s3_bucket}/' + os.path.join(out, output_name).lstrip('/')
+            output_path = f's3://{s3_bucket}/' + \
+                os.path.join(out, output_name).lstrip('/')
         else:
             output_path = out
         write_output(output_path, output, config.out_fsspec_kwargs)
@@ -342,26 +404,37 @@ def analyze(config: HydrographStatsConfig, wat_payload: Optional[WatPayload] = N
 
 def parse_args(raw_args: List[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument('hydrographs', default=DEFAULT_HYDROGRAPHS, nargs='*', help='Paths or URLs to hydrographs.')
+    parser.add_argument('hydrographs', default=DEFAULT_HYDROGRAPHS,
+                        nargs='*', help='Paths or URLs to hydrographs.')
     parser.add_argument('--storage-options', default=DEFAULT_STORAGE_OPTIONS, type=json.loads,
                         help=f"Storage options for hydrographs, passed to pandas.read_csv. JSON. Default: {DEFAULT_STORAGE_OPTIONS}")
-    parser.add_argument('--wat-payload', default=DEFAULT_WAT_PAYLOAD, help='WAT payload file (YAML).')
+    parser.add_argument(
+        '--wat-payload', default=DEFAULT_WAT_PAYLOAD, help='WAT payload file (YAML).')
     parser.add_argument('--wat-payload-fsspec-kwargs', default=DEFAULT_WAT_PAYLOAD_FSSPEC_KWARGS, type=json.loads,
                         help=f"Extra options passed to fsspec.open to read WAT payload file. JSON. Default: {DEFAULT_WAT_PAYLOAD_FSSPEC_KWARGS}")
-    parser.add_argument('--config', default=DEFAULT_CONFIG, help='Configuration file (YAML).')
+    parser.add_argument('--config', default=DEFAULT_CONFIG,
+                        help='Configuration file (YAML).')
     parser.add_argument('--config-fsspec-kwargs', default=DEFAULT_CONFIG_FSSPEC_KWARGS, type=json.loads,
                         help=f"Extra options passed to fsspec.open to read config file. JSON. Default: {DEFAULT_CONFIG_FSSPEC_KWARGS}")
     parser.add_argument('--duration', default="3H",
                         help=(f'Duration string specifying a rolling window for analysis. Default: "{DEFAULT_DURATION}". '
                               'See: https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases'))
-    parser.add_argument('--sep', default=DEFAULT_SEP, help=f'Column separator. Default: "{DEFAULT_SEP}"')
-    parser.add_argument('--col-idx-dt', default=DEFAULT_COL_IDX_DT, help=f'Datetime column index. Default: {DEFAULT_COL_IDX_DT}')
-    parser.add_argument('--col-idx-q', default=DEFAULT_COL_IDX_Q, help=f'Flow column index. Default: {DEFAULT_COL_IDX_Q}')
+    parser.add_argument('--sep', default=DEFAULT_SEP,
+                        help=f'Column separator. Default: "{DEFAULT_SEP}"')
+    parser.add_argument('--col-idx-dt', default=DEFAULT_COL_IDX_DT,
+                        help=f'Datetime column index. Default: {DEFAULT_COL_IDX_DT}')
+    parser.add_argument('--col-idx-q', default=DEFAULT_COL_IDX_Q,
+                        help=f'Flow column index. Default: {DEFAULT_COL_IDX_Q}')
     parser.add_argument('--usgs-rdb', action='store_true', default=DEFAULT_USGS_RDB,
                         help=f'Hydrograph in USGS RDB format. Overrides column and sep options. Default: {DEFAULT_USGS_RDB}')
+    parser.add_argument('--dss', action='store_true', default=DEFAULT_DSS,
+                        help=f'Hydrograph in HEC-DSS format <filepath>:<pathname>. Specify --irregular if data is irregular. Default: {DEFAULT_DSS}')
+    parser.add_argument('--irregular', action='store_true',
+                        help=f'If specified, the dss data is treated as irregular time-series, otherwise it is treated as regular time-series.')
     parser.add_argument('--pretty-print', action='store_true', default=DEFAULT_PRETTY_PRINT,
                         help=f'Pretty print JSON results. Default: {DEFAULT_PRETTY_PRINT}')
-    parser.add_argument('--out', default=DEFAULT_OUT, help=f"Output location. Default: {DEFAULT_OUT}")
+    parser.add_argument('--out', default=DEFAULT_OUT,
+                        help=f"Output location. Default: {DEFAULT_OUT}")
     parser.add_argument('--out-fsspec-kwargs', default=DEFAULT_OUT_FSSPEC_KWARGS, type=json.loads,
                         help=f"Extra options passed to fsspec.open for writing results. JSON. Default: {DEFAULT_OUT_FSSPEC_KWARGS}")
     args = parser.parse_args(raw_args)
@@ -371,17 +444,20 @@ def parse_args(raw_args: List[str]) -> argparse.Namespace:
 def main(args: List[str]):
     parsed_args = parse_args(args)
     if parsed_args.wat_payload:
-        wat_payload = WatPayload.from_yaml(parsed_args.wat_payload, parsed_args.wat_payload_fsspec_kwargs)
+        wat_payload = WatPayload.from_yaml(
+            parsed_args.wat_payload, parsed_args.wat_payload_fsspec_kwargs)
         s3_bucket = os.environ.get('S3_BUCKET')
         if s3_bucket:
-            config_path = f's3://{s3_bucket}/' + wat_payload.model_configuration_paths[0].lstrip('/')
+            config_path = f's3://{s3_bucket}/' + \
+                wat_payload.model_configuration_paths[0].lstrip('/')
         else:
             config_path = wat_payload.model_configuration_paths[0]
         config = HydrographStatsConfig.from_yaml(config_path,
                                                  parsed_args.config_fsspec_kwargs)
     elif parsed_args.config:
         wat_payload = None
-        config = HydrographStatsConfig.from_yaml(parsed_args.config, parsed_args.config_fsspec_kwargs)
+        config = HydrographStatsConfig.from_yaml(
+            parsed_args.config, parsed_args.config_fsspec_kwargs)
     else:
         wat_payload = None
         config = HydrographStatsConfig.from_args(parsed_args)
